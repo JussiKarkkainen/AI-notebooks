@@ -7,14 +7,14 @@ All models use PyTorch or are impemented from scratch. Future additions might al
 
 ## Usage
 First clone the repository
-´´´
+```
 git clone
 cd AI-notebooks
-´´´
+```
 You can train different models by running:
-´´´
+```
 ./train --model --dataset
-´´´
+```
 Supported model and dataset combinations can be found in the implemented models list
 
 
