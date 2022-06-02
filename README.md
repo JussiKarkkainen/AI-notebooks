@@ -8,7 +8,7 @@ All models use PyTorch or are impemented from scratch. Future additions might al
 ## Usage
 First clone the repository
 ```
-git clone
+git clone git@github.com:JussiKarkkainen/AI-notebooks.git
 cd AI-notebooks
 ```
 You can train different models by running:
