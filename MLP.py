@@ -12,8 +12,9 @@ def get_data(batch_size):
 
     return torch.utils.data.DataLoader(trainset, batch_size, shuffle=True, num_workers=2)
 
-
-train_iter = get_data(batch_size=256)
+def get_train_iter():
+    train_iter = get_data(batch_size=256)
+    return train_iter
 
 
 def relu(x):
@@ -59,18 +60,19 @@ def sgd(params, lr, batch_size):
             param -= lr * param.grad / batch_size
             param.grad.zero_()
 
+def mlp_train_mnist():
+    lr = 0.1
+    num_epochs = 10
+    loss = crossentropy
+    net = mlp
+    train_iter = get_train_iter()
+    for epoch in range(num_epochs):
+        for X, y in train_iter:
+            l = loss(net(X), y)
+            l.sum().backward()
+            sgd(params, lr, batch_size=256)
+        with torch.no_grad():
+            train_l = loss(net(X), y)
+            print(f'epoch {epoch + 1}, loss {float(train_l.mean()):f}')
 
-lr = 0.01
-num_epochs = 10
-loss = crossentropy
-net = mlp
 
-
-for epoch in range(num_epochs):
-    for X, y in train_iter:
-        l = loss(net(X), y)
-        l.sum().backward()
-        sgd(params, lr, batch_size=256)
-    with torch.no_grad():
-        train_l = loss(net(X), y)
-        print(f'epoch {epoch + 1}, loss {float(train_l.mean()):f}')
