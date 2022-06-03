@@ -81,6 +81,9 @@ def mlp_train_mnist():
         with torch.no_grad():
             train_l = loss(net(X), y)
             print(f'epoch {epoch + 1}, loss {float(train_l.mean()):f}')
-            ax.plot(epoch, float(train_l.mean()))
+            x_axes.append(epoch + 1)
+            y_axes.append(float(train_l.mean()))
+
+    plt.plot(x_axes, y_axes)
     plt.show()
             
