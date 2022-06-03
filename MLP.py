@@ -2,6 +2,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import matplotlib.pyplot as plt
 from torch import nn
 
 def get_data(batch_size):
@@ -66,6 +67,12 @@ def mlp_train_mnist():
     loss = crossentropy
     net = mlp
     train_iter = get_train_iter()
+
+    figure, ax = plt.subplots()
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    x_axes = []
+    y_axes = []
     for epoch in range(num_epochs):
         for X, y in train_iter:
             l = loss(net(X), y)
@@ -74,5 +81,6 @@ def mlp_train_mnist():
         with torch.no_grad():
             train_l = loss(net(X), y)
             print(f'epoch {epoch + 1}, loss {float(train_l.mean()):f}')
-
-
+            ax.plot(epoch, float(train_l.mean()))
+    plt.show()
+            
