@@ -20,3 +20,4 @@ Supported model and dataset combinations can be found in the implemented models 
 
 ## Current list of implemented models
 - Multilayered Perceptron --mlp --mnist
+- Gated Recurrent Unit --gru --ptb
