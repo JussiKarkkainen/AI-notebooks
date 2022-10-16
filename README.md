@@ -5,8 +5,8 @@ and [PyTorch](https://pytorch.org/).
 
 
 ## List of implemented models: WIP
-- Transformer - [(Attention is all you need)](https://arxiv.org/abs/1706.03762)
-- ViT - [(An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale)](https://arxiv.org/abs/2010.11929)
-- GPT (scaled down) - [(Language Models are Few-Shot Learners)](https://arxiv.org/abs/2005.14165)
-- Stable Diffusion - [(High-Resolution Image Synthesis with Latent Diffusion Models)](https://arxiv.org/abs/2112.10752)
-- MuZero - [(Mastering Atari, Go, Chess and Shogi by Planning with a Learned Model)](https://arxiv.org/abs/1911.08265)
+- Transformer - [Attention is all you need](https://arxiv.org/abs/1706.03762) (PyTorch)
+- ViT - [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929) (PyTorch)
+- GPT (scaled down) - [(Language Models are Few-Shot Learners)](https://arxiv.org/abs/2005.14165) (JAX/Haiku)
+- Stable Diffusion - [(High-Resolution Image Synthesis with Latent Diffusion Models)](https://arxiv.org/abs/2112.10752) (JAX/Haiku)
+- MuZero - [(Mastering Atari, Go, Chess and Shogi by Planning with a Learned Model)](https://arxiv.org/abs/1911.08265) (JAX/Haiku)
