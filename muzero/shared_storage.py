@@ -1,4 +1,4 @@
-import network
+import network 
 
 # Save and retrieve latest neural network from store
 class SharedStorage:

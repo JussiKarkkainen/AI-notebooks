@@ -18,8 +18,12 @@ class MuZeroConfig:
                  num_actors: int,
                  lr_init: float,
                  lr_decay_steps: float,
+                 name: str,
                  visit_softmax_temperature_fn,
                  known_bounds: Optional[KnownBounds] = None):
+
+        # Name
+        self.game_name = name
 
         ### Self-Play
         self.action_space_size = action_space_size
@@ -85,10 +89,28 @@ def make_cartpole_config() -> MuZeroConfig:
                         num_actors = 1,
                         lr_init = 0.02,
                         lr_decay_steps = 1000,
+                        name="cartpole-v1",
                         visit_softmax_temperature_fn=MuZeroConfig.visit_softmax_temperature_fn,
                         known_bounds=KnownBounds(-1, 1))
 
 
+
+class Game:
+    def __init__(self):
+        self.env = gym.make("CartPole-v1")
+        self.env.action_space.seed(42)
+        self.seed = 42
+   
+    def step(self, action):
+        observation, reward, terminated, truncated, info, done = self.env.step(action)
+        return observation, reward, terminated, truncated, info, done
+
+    def reset(self):
+        observation, info = self.env.reset(seed=42)
+        return observation, info
+
+    def render(self):
+        self.env.render()
 
 '''
 env = gym.make('cartpole-v1', render_mode='human')
