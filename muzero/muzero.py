@@ -14,7 +14,7 @@ class MuZero:
     def __init__(self, game: str, training: bool, config: games.MuZeroConfig = None):
         self.game = game
         self.training = training
-        if game == 'cartpole-v1':
+        if game == 'CartPole-v1':
             self.config = games.make_cartpole_config()
         else:
             self.config = config

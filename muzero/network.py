@@ -3,7 +3,15 @@ import jax.numpy as jnp
 import haiku as hk
 import optax
 from games import MuZeroConfig
+from typing import NamedTuple, Dict, List
 
+Action = List[int]
+
+class NetworkOutput(NamedTuple):
+    value: float
+    reward: float
+    policy_logits: Dict[Action, float]
+    hidden_state: List[float]
 
 class Network(hk.Module):
     def __init__(self):
