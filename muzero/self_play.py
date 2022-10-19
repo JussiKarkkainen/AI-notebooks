@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from games import MuZeroConfig
 import games
 from shared_storage import SharedStorage
@@ -42,7 +43,12 @@ class SelfPlay:
         while not terminated and len(game_history.action_history) < config.max_moves:
             root = Node(0)
             network_output = self.model.initial_inference(observation, init)
-            self.expand_node(root, self.game.legal_actions(), self.game.to_play())
+            self.expand_node(root, self.game.legal_actions(), 
+                             self.game.to_play(), network_output)
+            
+            # Monte Carlo Tree Search
+            MCTS(self.config, root, game_history.action_history, self.model).run()
+
             action = self.select_action(len(game_history.action_history), root)
             
             observation, reward, terminated, truncated, info, done = self.game.env.step(action)
@@ -55,11 +61,34 @@ class SelfPlay:
 
         return game_history
 
-    def expand_node(self, node: Node, legal_actions: list, to_play):
+    def expand_node(self, node: Node, legal_actions: list, to_play, network_output):
         node.to_play = to_play
-
+        node.hidden_state = network_output.hidden_state
+        node.reward = network_output.reward
+        policy = {a: math.exp(network_output.policy_logits[a]) for a in legal_actions}
+        policy_sum = sum(policy.values())
+        for action, p in policy.items():
+            node.children[action] = Node(p / policy_sum)
+    
     def select_action(self, action_history, node: Node):
         pass
+
+class MCTS:
+    def __init__(self, config, root, action_history, network):
+        self.config = config
+        self.root = root
+        self.action_history = action_history
+        self.network = network
+
+    def run(self):
+        pass
+
+    def select_child(self):
+        pass
+
+    def backpropagate(self):
+        pass
+
 
 class Node:
     def __init__(self, prior: float):
@@ -88,7 +117,3 @@ class GameHistory:
         self.reward_history = []
 
 
-
-class MCTS:
-    def __init__(self):
-        pass
