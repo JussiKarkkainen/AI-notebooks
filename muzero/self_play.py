@@ -35,13 +35,13 @@ class SelfPlay:
         game_history.reward_history.append(0)
                 
         terminated = False
+        init = True
         if render:
             self.game.render()
 
         while not terminated and len(game_history.action_history) < config.max_moves:
             root = Node(0)
-            network_output = self.model.initial_inference(observation)
-            print(network_output)
+            network_output = self.model.initial_inference(observation, init)
             self.expand_node(root, self.game.legal_actions(), self.game.to_play())
             action = self.select_action(len(game_history.action_history), root)
             
@@ -51,6 +51,7 @@ class SelfPlay:
             game_history.reward_history.append(reward)
             
             terminated = terminated
+            init = False
 
         return game_history
 

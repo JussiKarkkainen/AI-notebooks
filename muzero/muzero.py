@@ -22,6 +22,7 @@ class MuZero:
     def train(self):
         print(f"Starting training on: {self.game}")
         print("__________________________________\n\n")
+
         shared_storage = SharedStorage()
         replay_buffer = ReplayBuffer(self.config)
         

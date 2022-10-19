@@ -27,15 +27,15 @@ class MuZeroConfig:
         # Network hyperparameters
         self.network = "fc"
         self.encoding_size = 8
-        self.fc_representation_layers = []  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
-        self.fc_value_layers = [16]  # Define the hidden layers in the value network
-        self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
+        self.fc_representation_layers = 16  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = 16  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = 16  # Define the hidden layers in the reward network
+        self.fc_value_layers = 16  # Define the hidden layers in the value network
+        self.fc_policy_layers = 16  # Define the hidden layers in the policy network
 
         # Name
         self.game_name = name
-        self.support_size = = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size
+        self.support_size = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size
 
         ### Self-Play
         self.action_space_size = action_space_size
