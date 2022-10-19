@@ -6,6 +6,8 @@ KnownBounds = collections.namedtuple('KnownBounds', ['min', 'max'])
 
 # From the pseudocode:
 # https://arxiv.org/src/1911.08265v2/anc/pseudocode.py
+# Hyperparameters from:
+# https://github.com/werner-duvaud/muzero-general/blob/master/games/cartpole.py
 class MuZeroConfig:
     def __init__(self, 
                  action_space_size: int,
@@ -22,13 +24,23 @@ class MuZeroConfig:
                  visit_softmax_temperature_fn,
                  known_bounds: Optional[KnownBounds] = None):
 
+        # Network hyperparameters
+        self.network = "fc"
+        self.encoding_size = 8
+        self.fc_representation_layers = []  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = [16]  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = [16]  # Define the hidden layers in the reward network
+        self.fc_value_layers = [16]  # Define the hidden layers in the value network
+        self.fc_policy_layers = [16]  # Define the hidden layers in the policy network
+
         # Name
         self.game_name = name
+        self.support_size = = 10  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size
 
         ### Self-Play
         self.action_space_size = action_space_size
         self.num_actors = num_actors
-
+        self.observation_shape = (1, 1, 4) # Channel, Height, Width
         self.visit_softmax_temperature_fn = visit_softmax_temperature_fn
         self.max_moves = max_moves
         self.num_simulations = num_simulations
@@ -112,18 +124,9 @@ class Game:
     def render(self):
         self.env.render()
 
-'''
-env = gym.make('cartpole-v1', render_mode='human')
-env.action_space.seed(42)
+    def legal_actions(self):
+        return list(range(2))
+    
+    def to_play(self):
+        return 0
 
-
-observation, info = env.reset(seed=42)
-
-for _ in range(1000):
-    observation, reward, terminated, truncated, info = env.step(env.action_space.sample())
-
-    if terminated or truncated:
-        observation, info = env.reset()
-
-env.close()
-'''
