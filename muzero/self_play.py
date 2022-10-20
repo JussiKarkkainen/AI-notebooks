@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from games import MuZeroConfig
+from games import MuZeroConfig, KnownBounds
 import games
 from shared_storage import SharedStorage
 from replay_buffer import ReplayBuffer
@@ -17,7 +17,6 @@ class SelfPlay:
         self.model = MuZeroNetwork(config, init)
         self.game = games.Game() 
         
-
     # Calls play_game() and stores game data to replay buffer and networks to shared storage
     def run_selfplay(self, shared_storage: SharedStorage, replay_buffer: ReplayBuffer):
         # first do single training step
@@ -81,14 +80,43 @@ class MCTS:
         self.network = network
 
     def run(self):
-        pass
+        min_max_stats = MinMaxStats(self.config.known_bounds)
+        for _ in range(config.num_simulations):
+            node = root
+            search_path = [node]
+            
+            # traverse tree until leaf node
+            while node.expanded():
+                action, node = select_child(node, min_max_stats)
+                self.action_history.append(action)
+
+            # When encountering leaf, use dynamics function to get next hidden state
+            parent = search_path[-2]
+            network_output = self.network.recurrent_inference(parent.hidden_state, 
+                    self.action_history[-1])
+            expand_node(parent, node, min_max_stats)
+            backpropagate()
+
 
     def select_child(self):
+        _, action, child = max(ucb_score((self.config, parent, child, min_max_stats), \
+                action, child) for action, child in node.children.items())
+        return action, child
+    
+    def ucb_score(self):
         pass
 
     def backpropagate(self):
         pass
 
+class MinMaxStats:
+    def __init__(self, known_bounds):
+        self.max = known_bounds.max if known_bounds.max else -float(inf)
+        self.min = known_bounds.min if known_bounds.min else float(inf)
+    
+    def update(self, value):
+        self.maximum = max(self.maximum, value)
+        self.minimum = min(self.minimum, value)
 
 class Node:
     def __init__(self, prior: float):
