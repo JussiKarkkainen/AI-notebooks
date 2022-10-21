@@ -81,30 +81,40 @@ class MCTS:
 
     def run(self):
         min_max_stats = MinMaxStats(self.config.known_bounds)
-        for _ in range(config.num_simulations):
-            node = root
+        for _ in range(self.config.num_simulations):
+            node = self.root
             search_path = [node]
             
             # traverse tree until leaf node
             while node.expanded():
-                action, node = select_child(node, min_max_stats)
+                action, node = self.select_child(node, min_max_stats)
                 self.action_history.append(action)
 
             # When encountering leaf, use dynamics function to get next hidden state
-            parent = search_path[-2]
+            parent = search_path[-1]
             network_output = self.network.recurrent_inference(parent.hidden_state, 
                     self.action_history[-1])
             expand_node(parent, node, min_max_stats)
             backpropagate()
 
 
-    def select_child(self):
-        _, action, child = max(ucb_score((self.config, parent, child, min_max_stats), \
+    def select_child(self, node, min_max_stats):
+        _, action, child = max((self.ucb_score(node, child, min_max_stats), \
                 action, child) for action, child in node.children.items())
         return action, child
     
-    def ucb_score(self):
-        pass
+    def ucb_score(self, parent, child, min_max_stats):
+        pb_c = math.log((parent.visit_count + self.config.pb_c_base + 1) /
+                      self.config.pb_c_base) + self.config.pb_c_init
+        pb_c *= math.sqrt(parent.visit_count) / (child.visit_count + 1)
+
+        prior_score = pb_c * child.prior
+        if child.visit_count > 0:
+            value_score = child.reward + self.config.discount * min_max_stats.normalize(
+                child.value())
+        else:
+            value_score = 0
+        return prior_score + value_score
 
     def backpropagate(self):
         pass

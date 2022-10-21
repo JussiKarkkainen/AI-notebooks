@@ -17,6 +17,7 @@ class MuZeroNetwork:
     def __new__(cls, config: MuZeroConfig, init):
         if config.network == "fc":
             return MuZeroFullyConnectedNet(config)
+        # Maybe do this
         elif config.network == "residual":
             return MuZeroResidualNet(config)
         else:
@@ -71,6 +72,7 @@ class MuZeroFullyConnectedNet:
             return mlp(x)
         self.value_network = hk.without_apply_rng(hk.transform(value_mlp_fn))
         
+        # Reward and state are part of dynamics
         def reward_mlp_fn(x):
             mlp = MLP(3, self.fc_reward_layers, self.encoding_size) 
             return mlp(x)
@@ -94,7 +96,7 @@ class MuZeroFullyConnectedNet:
             self.reward_network = self.reward_network.init(self.seed, hidde_state)
             self.hidden_params = self.hidden_state_network.init(self.seed, hidden_state)
         # One hot encode action and concatanate with state
-        x = jnp.cat((state, action), dim=1)
+        x = jnp.concatenate((state, action), axis=1)
         reward = self.reward_network.apply(self.reward_params, x)
         hidden_state = self.hidden_state_network.apply(self.state_params, x)
         return reward, hidden_state
