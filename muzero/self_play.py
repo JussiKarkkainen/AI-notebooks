@@ -95,8 +95,8 @@ class MCTS:
             network_output = self.network.recurrent_inference(parent.hidden_state, 
                     self.action_history[-1])
             expand_node(parent, node, min_max_stats)
-            backpropagate()
-
+            self.backpropagate(search_path, network_output.value, self.action_history.to_play(),
+                    self.config.discount, min_max_stats)
 
     def select_child(self, node, min_max_stats):
         _, action, child = max((self.ucb_score(node, child, min_max_stats), \
@@ -116,8 +116,12 @@ class MCTS:
             value_score = 0
         return prior_score + value_score
 
-    def backpropagate(self):
-        pass
+    def backpropagate(self, search_path, value, min_max_stats):
+        for node in reversed(search_path):
+            node.value_sum += value if node.to_play == to_play else -value
+            node.visit_count += 1
+            min_max_stats.update(node.value())
+            value = node.reward + discount * value
 
 class MinMaxStats:
     def __init__(self, known_bounds):
