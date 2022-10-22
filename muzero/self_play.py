@@ -70,7 +70,13 @@ class SelfPlay:
             node.children[action] = Node(p / policy_sum)
     
     def select_action(self, action_history, node: Node):
-        pass
+        visit_counts = [
+            (child.visit_count, action) for action, child in node.children.items()
+        ]
+        t = config.visit_softmax_temperature_fn(
+        num_moves=num_moves, training_steps=network.training_steps())
+        _, action = softmax_sample(visit_counts, t)
+        return action
 
 class MCTS:
     def __init__(self, config, root, action_history, network):
