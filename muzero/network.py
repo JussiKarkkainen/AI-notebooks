@@ -2,7 +2,6 @@ import jax; jax.config.update('jax_platform_name', 'cpu')
 import jax.numpy as jnp
 import haiku as hk
 import optax
-import numpy as np
 from games import MuZeroConfig
 from typing import NamedTuple, Dict, List
 
@@ -89,14 +88,14 @@ class MuZeroFullyConnectedNet:
     # Returns reward and new state from action and state
     def dynamics_fn(self, state, action, init=False):
         if init:
-            r_init = np.random.randn(*state.shape).astype(np.float32)
-            # TODO get rid of magic values
-            s_init = np.random.randn(10, 1).astype(np.float32)
+            r_init = jax.random.normal(self.seed, state.shape, dtype=jnp.float32)
+            # TODO: get rid of magic values
+            s_init = jax.random.normal(self.seed, (1, 10), dtype=jnp.float32)
             self.reward_params = self.reward_network.init(self.seed, r_init) 
             self.state_params = self.hidden_state_network.init(self.seed, s_init)
         # One hot encode action and concatanate with state
         state, action = state.reshape(-1, 1), hk.one_hot(action, 2).reshape(-1, 1)
-        x = jnp.concatenate((state, action), axis=0)
+        x = jnp.concatenate((state, action), axis=0).reshape(1, 10)
         hidden_state = self.hidden_state_network.apply(self.state_params, x)
         reward = self.reward_network.apply(self.reward_params, hidden_state)
         return reward, hidden_state

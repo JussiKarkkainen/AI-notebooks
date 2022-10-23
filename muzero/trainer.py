@@ -3,7 +3,6 @@ from shared_storage import SharedStorage
 from replay_buffer import ReplayBuffer
 import optax
 
-
 def loss_function(params, batch):
     pass
 

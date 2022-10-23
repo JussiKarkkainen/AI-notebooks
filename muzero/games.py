@@ -32,6 +32,7 @@ class MuZeroConfig:
         self.fc_reward_layers = 16  # Define the hidden layers in the reward network
         self.fc_value_layers = 16  # Define the hidden layers in the value network
         self.fc_policy_layers = 16  # Define the hidden layers in the policy network
+        self.stacked_observations = 2 # Number of observations stacked and fed to model
 
         # Name
         self.game_name = name
@@ -39,6 +40,7 @@ class MuZeroConfig:
 
         ### Self-Play
         self.action_space_size = action_space_size
+        self.action_space = list(range(action_space_size))
         self.num_actors = num_actors
         self.observation_shape = (1, 1, 4) # Channel, Height, Width
         self.visit_softmax_temperature_fn = visit_softmax_temperature_fn
