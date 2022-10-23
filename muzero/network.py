@@ -1,7 +1,8 @@
-import jax
+import jax; jax.config.update('jax_platform_name', 'cpu')
 import jax.numpy as jnp
 import haiku as hk
 import optax
+import numpy as np
 from games import MuZeroConfig
 from typing import NamedTuple, Dict, List
 
@@ -22,11 +23,6 @@ class MuZeroNetwork:
             return MuZeroResidualNet(config)
         else:
             raise TypeError(f"Invalid network type: {config.network}")
-
-
-def make_uniform_network():
-    
-    pass
 
 class MLP(hk.Module):
     def __init__(self, num_layers, layer_size, num_outputs):
@@ -93,12 +89,16 @@ class MuZeroFullyConnectedNet:
     # Returns reward and new state from action and state
     def dynamics_fn(self, state, action, init=False):
         if init:
-            self.reward_network = self.reward_network.init(self.seed, hidde_state)
-            self.hidden_params = self.hidden_state_network.init(self.seed, hidden_state)
+            r_init = np.random.randn(*state.shape).astype(np.float32)
+            # TODO get rid of magic values
+            s_init = np.random.randn(10, 1).astype(np.float32)
+            self.reward_params = self.reward_network.init(self.seed, r_init) 
+            self.state_params = self.hidden_state_network.init(self.seed, s_init)
         # One hot encode action and concatanate with state
-        x = jnp.concatenate((state, action), axis=1)
-        reward = self.reward_network.apply(self.reward_params, x)
+        state, action = state.reshape(-1, 1), hk.one_hot(action, 2).reshape(-1, 1)
+        x = jnp.concatenate((state, action), axis=0)
         hidden_state = self.hidden_state_network.apply(self.state_params, x)
+        reward = self.reward_network.apply(self.reward_params, hidden_state)
         return reward, hidden_state
     
     # Returns policy and value for given game state
@@ -120,9 +120,9 @@ class MuZeroFullyConnectedNet:
     # dynamics + prediction
     def recurrent_inference(self, hidden_state, action, init=False):
         reward, hidden_state = self.dynamics_fn(hidden_state, action, init)
-        policy, value = self.prediction_fn(hidden_state, init)
+        policy_logits, value = self.prediction_fn(hidden_state, init)
         return NetworkOutput(value=value, reward=reward, 
-                             policy_logits=policy_logits, hidde_state=hidden_state)
+                             policy_logits=policy_logits, hidden_state=hidden_state)
 
 class MuZeroResidualNet:
     def __init__(self):

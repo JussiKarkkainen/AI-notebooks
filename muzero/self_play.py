@@ -99,7 +99,7 @@ class MCTS:
             # When encountering leaf, use dynamics function to get next hidden state
             parent = search_path[-1]
             network_output = self.network.recurrent_inference(parent.hidden_state, 
-                    self.action_history[-1])
+                    self.action_history[-1], init=True)
             expand_node(parent, node, min_max_stats)
             self.backpropagate(search_path, network_output.value, self.action_history.to_play(),
                     self.config.discount, min_max_stats)

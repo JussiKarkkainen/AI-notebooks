@@ -4,6 +4,9 @@ from replay_buffer import ReplayBuffer
 import optax
 
 
+def loss_function(params, batch):
+    pass
+
 class Trainer:
     def __init__(self, config: MuZeroConfig): 
         self.config = config
@@ -21,7 +24,7 @@ class Trainer:
             self.update_weights(batch)
         shared_storage.save_network(config.training_steps, network)
 
-
+     
     def update_weights(self, batch):
         '''
         Update weigths for single batch of replay buffer
@@ -43,8 +46,7 @@ class Trainer:
                 l = ((value - target_value)**2 + (reward - target_reward)**2 + \
                         optax.softmax_cross_entropy(policy, target_policy))
                 
-                # TODO pseudocode uses tf.scale_gradient
-                loss += l
+                loss += scale_grad(l, gradient_scale)
         
         # Regularization loss
         for weigths in self.model.get_weigths():
@@ -54,4 +56,8 @@ class Trainer:
 
 
         # TODO Return losses for logging
-        return 
+        return
+    
+
+def scale_grad(value, scale):
+    return value * scale + value * (1. - scale)
