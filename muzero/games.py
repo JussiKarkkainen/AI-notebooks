@@ -21,7 +21,6 @@ class MuZeroConfig:
                  lr_init: float,
                  lr_decay_steps: float,
                  name: str,
-                 visit_softmax_temperature_fn,
                  known_bounds: Optional[KnownBounds] = None):
 
         # Network hyperparameters
@@ -43,7 +42,6 @@ class MuZeroConfig:
         self.action_space = list(range(action_space_size))
         self.num_actors = num_actors
         self.observation_shape = (1, 1, 4) # Channel, Height, Width
-        self.visit_softmax_temperature_fn = visit_softmax_temperature_fn
         self.max_moves = max_moves
         self.num_simulations = num_simulations
         self.discount = discount
@@ -78,7 +76,6 @@ class MuZeroConfig:
         self.lr_decay_rate = 0.1
         self.lr_decay_steps = lr_decay_steps
     
-    @staticmethod
     def visit_softmax_temperature_fn(self, trained_steps):
         '''
         Temperature controls how much the agent exploits vs explores.
@@ -104,7 +101,6 @@ def make_cartpole_config() -> MuZeroConfig:
                         lr_init = 0.02,
                         lr_decay_steps = 1000,
                         name="cartpole-v1",
-                        visit_softmax_temperature_fn=MuZeroConfig.visit_softmax_temperature_fn,
                         known_bounds=KnownBounds(-1, 1))
 
 
@@ -116,8 +112,8 @@ class Game:
         self.seed = 42
    
     def step(self, action):
-        observation, reward, terminated, truncated, info, done = self.env.step(action)
-        return observation, reward, terminated, truncated, info, done
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        return observation, reward, terminated, truncated, info
 
     def reset(self):
         observation, info = self.env.reset(seed=42)

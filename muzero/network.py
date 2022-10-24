@@ -113,7 +113,8 @@ class MuZeroFullyConnectedNet:
     def initial_inference(self, observation, init=False):
         hidden_state = self.representation_fn(observation, init)
         policy_logits, value = self.prediction_fn(hidden_state, init)
-        return NetworkOutput(value=value, reward=None, 
+        reward = 0
+        return NetworkOutput(value=value, reward=reward, 
                              policy_logits=policy_logits, hidden_state=hidden_state)
     
     # dynamics + prediction
