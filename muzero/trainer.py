@@ -1,3 +1,4 @@
+from network import MuZeroNetwork
 from games import MuZeroConfig
 from shared_storage import SharedStorage
 from replay_buffer import ReplayBuffer
@@ -9,19 +10,18 @@ def loss_function(params, batch):
 class Trainer:
     def __init__(self, config: MuZeroConfig): 
         self.config = config
-        model = MuZeroNetwork(config, init=True)
-        lr = config.lr_init
-        optimizer = optax.Adam(lr) 
-        # TODO
-        self.weigth_decay = config.weigth_decay
+        self.model = MuZeroNetwork(config, init=True)
+        self.lr = config.lr_init
+        self.optimizer = optax.adam(self.lr) 
+        self.weight_decay = config.weight_decay
 
     def train_network(self, shared_storage: SharedStorage, replay_buffer: ReplayBuffer):
         for i in range(self.config.training_steps):
-            if i % config.checkpoint_interval == 0:
+            if i % self.config.checkpoint_interval == 0:
                 shared_storage.save_network(i, self.model)
-            batch = replay_buffer.sample_batch(config.num_unroll_steps, config.td_steps)
+            batch = replay_buffer.sample_batch(self.config.num_unroll_steps, self.config.td_steps)
             self.update_weights(batch)
-        shared_storage.save_network(config.training_steps, network)
+        shared_storage.save_network(self.config.training_steps, self.model)
 
      
     def update_weights(self, batch):
@@ -57,6 +57,5 @@ class Trainer:
         # TODO Return losses for logging
         return
     
-
 def scale_grad(value, scale):
     return value * scale + value * (1. - scale)

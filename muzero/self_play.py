@@ -23,9 +23,8 @@ class SelfPlay:
     # Calls play_game() and stores game data to replay buffer and networks to shared storage
     def run_selfplay(self, shared_storage: SharedStorage, replay_buffer: ReplayBuffer):
         print("Starting Self-Play to fill Replay Buffer\n")
-        # first do single training step, normally this would loop until replay buffer is full
-        # while shared_storage.training_step < self.config.training_steps:
-            # TODO: Need to add seperate cases for training and inference
+        #while shared_storage.training_step < self.config.training_steps:
+        # TODO: Need to add seperate cases for training and inference
         game_history = self.play_game(self.config, shared_storage, self.model)
         replay_buffer.save_game(game_history)
         shared_storage.increment_trainingstep()            

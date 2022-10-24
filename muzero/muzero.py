@@ -38,13 +38,13 @@ class MuZero:
         print("__________________________________\n\n")
 
     # Start training or test
-    def execute(self):
+    def execute(self, path=None):
         if self.training:
             latest_network = self.train()
             weights.save_weights(latest_network)
 
         elif not self.training:
-            latest_network = weights.download_weights()
+            latest_network = weights.download_weights(path)
             self.test()
 
 if __name__ == "__main__":
