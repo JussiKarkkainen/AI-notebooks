@@ -27,7 +27,7 @@ class MuZero:
         replay_buffer = ReplayBuffer(self.config)
         
         # TODO In the pseudocode this is done using multiple parallel jobs
-        SelfPlay(self.game, self.config, init=True).run_selfplay(shared_storage, replay_buffer)
+        SelfPlay(self.game, self.config).run_selfplay(shared_storage, replay_buffer)
         print("Replay Buffer is full, starting training\n")
         Trainer(self.config).train_network(shared_storage, replay_buffer)
 

@@ -13,21 +13,23 @@ class SelfPlay:
     Gather data to replay buffer and play game during test time
     '''
 
-    def __init__(self, game, config: MuZeroConfig, init=False):
+    def __init__(self, game, config: MuZeroConfig):
         self.config = config
-        self.init = init
-        self.model = MuZeroNetwork(config, init)
+        self.model = MuZeroNetwork(config)
         self.game = games.Game() 
         self.seed = jax.random.PRNGKey(seed=0)
 
     # Calls play_game() and stores game data to replay buffer and networks to shared storage
     def run_selfplay(self, shared_storage: SharedStorage, replay_buffer: ReplayBuffer):
         print("Starting Self-Play to fill Replay Buffer\n")
-        #while shared_storage.training_step < self.config.training_steps:
-        # TODO: Need to add seperate cases for training and inference
-        game_history = self.play_game(self.config, shared_storage, self.model)
-        replay_buffer.save_game(game_history)
-        shared_storage.increment_trainingstep()            
+        while shared_storage.training_step < self.config.training_steps:
+            # TODO: Need to add seperate cases for training and inference
+            game_history, network = self.play_game(self.config, shared_storage, self.model)
+            replay_buffer.save_game(game_history)
+            # Save first network so params can be reused in training 
+            if shared_storage.training_step == 0:
+                shared_storage.save_network(shared_storage.training_step, network)
+            shared_storage.increment_trainingstep()            
 
     # Execute Monte Carlo Tree Search to generate moves 
     def play_game(self, config: MuZeroConfig, shared_storage, network: MuZeroNetwork, render=False):
@@ -58,7 +60,6 @@ class SelfPlay:
             MCTS(self.game, self.config, root, game_history.action_history, self.model, init).run()
 
             action = self.select_action(len(game_history.action_history), root, shared_storage).item()
-            
             observation, reward, terminated, truncated, info = self.game.step(action)
             game_history.action_history.append(action)
             game_history.observation_history.append(observation)
@@ -66,8 +67,8 @@ class SelfPlay:
             
             terminated = terminated
             init = False
-
-        return game_history
+        
+        return game_history, self.model
 
     
     def select_action(self, num_moves, node: Node, shared_storage):
@@ -106,18 +107,19 @@ class MCTS:
     def run(self):
         min_max_stats = MinMaxStats(self.config.known_bounds)
         for _ in range(self.config.num_simulations):
+            history = self.action_history.copy()
             node = self.root
             search_path = [node]
             # traverse tree until leaf node
             while node.expanded():
                 action, node = self.select_child(node, min_max_stats)
-                self.action_history.append(action)
+                history.append(action)
                 search_path.append(node)
 
             # When encountering leaf, use dynamics function to get next hidden state
             parent = search_path[-2]
             network_output = self.network.recurrent_inference(parent.hidden_state, 
-                    self.action_history[-1], init=self.init)
+                    history[-1], init=self.init)
             value = support_to_scalar(network_output.value, self.config.support_size)
             reward = support_to_scalar(network_output.value, self.config.support_size)
             policy_logits = network_output.policy_logits

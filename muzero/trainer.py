@@ -10,27 +10,40 @@ def loss_function(params, batch):
 class Trainer:
     def __init__(self, config: MuZeroConfig): 
         self.config = config
-        self.model = MuZeroNetwork(config, init=True)
+        # self.model = MuZeroNetwork(config)
         self.lr = config.lr_init
         self.optimizer = optax.adam(self.lr) 
         self.weight_decay = config.weight_decay
 
     def train_network(self, shared_storage: SharedStorage, replay_buffer: ReplayBuffer):
+        self.model = shared_storage.latest_network()
         for i in range(self.config.training_steps):
             if i % self.config.checkpoint_interval == 0:
                 shared_storage.save_network(i, self.model)
-            batch = replay_buffer.sample_batch(self.config.num_unroll_steps, self.config.td_steps)
-            self.update_weights(batch)
+            image_batch, action_batch, target_batch = replay_buffer.sample_batch(
+                    self.config.num_unroll_steps, self.config.td_steps)
+            self.update_weights(image_batch, action_batch, target_batch)
         shared_storage.save_network(self.config.training_steps, self.model)
 
      
-    def update_weights(self, batch):
+    def update_weights(self, image_batch, action_batch, target_batch):
         '''
         Update weigths for single batch of replay buffer
+        
+        image_batch.shape = (batch_size, num_unroll_steps, observation_shape)
+        reward_batch.shape = (batch_size, num_unroll_steps)
+        target_batch.shape = (batch_size, num_unroll_steps)
+
+        images.shape = (num_unroll_steps, observation_shape)
+        actions.shape = (num_unroll_steps)
+        target.shape = (num_unroll_steps)
         '''
+        
         loss = 0
-        for image, action, target in batch:
-            init_out = self.model.initial_inference(image)
+        init = True
+
+        for images, actions, targets in zip(image_batch, action_batch, target_batch):
+            init_out = self.model.initial_inference(images)
             predictions = [(1., init_out.value, init_out.reward, init_out.policy_logits)]
 
             # Dynamics needs to be trained on sequence of actions

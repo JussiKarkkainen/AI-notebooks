@@ -14,7 +14,7 @@ class NetworkOutput(NamedTuple):
     hidden_state: List[float]
 
 class MuZeroNetwork:
-    def __new__(cls, config: MuZeroConfig, init):
+    def __new__(cls, config: MuZeroConfig):
         if config.network == "fc":
             return MuZeroFullyConnectedNet(config)
         # Maybe do this
@@ -48,7 +48,6 @@ class MuZeroFullyConnectedNet:
         self.fc_dynamics_layers = config.fc_dynamics_layers
         self.support_size = config.support_size
         self.full_support_size = 2 * self.support_size + 1
-        
         self.seed = jax.random.PRNGKey(seed=0)
 
         def representation_mlp_fn(x):

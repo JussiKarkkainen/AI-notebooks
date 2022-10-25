@@ -61,10 +61,10 @@ class MuZeroConfig:
         self.known_bounds = known_bounds
 
         ### Training
-        self.training_steps = int(1000e3)
+        self.training_steps = int(2)        # 1000e3
         self.checkpoint_interval = int(1e3)
         self.window_size = int(1e6)
-        self.batch_size = batch_size
+        self.batch_size = 2                 # batch_size
         self.num_unroll_steps = 5
         self.td_steps = td_steps
 
@@ -116,7 +116,7 @@ class Game:
         return observation, reward, terminated, truncated, info
 
     def reset(self):
-        observation, info = self.env.reset(seed=42)
+        observation, info = self.env.reset()
         return observation, info
 
     def render(self):

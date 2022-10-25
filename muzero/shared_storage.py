@@ -11,7 +11,7 @@ class SharedStorage:
 
     def latest_network(self):
         if self.networks:
-            return self.networks[max(self.network.keys())]
+            return self.networks[max(self.networks.keys())]
         else:
             return network.make_uniform_network()
     

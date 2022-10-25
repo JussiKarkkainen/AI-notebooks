@@ -1,4 +1,4 @@
-
+import jax.numpy as jnp
 
 # Used to store data from previous games
 class ReplayBuffer:
@@ -13,9 +13,8 @@ class ReplayBuffer:
         self.buffer.append(game)
 
     def sample_batch(self, unroll_steps, td_steps):
-        image_batch, action_batch, target_batch = [], [], []
-        image_batch.append([self.buffer[i].observation_history for i in range(self.batch_size)])
-        action_batch.append([self.buffer[i].action_history for i in range(self.batch_size)])
-        target_batch.append([self.buffer[i].reward_history for i in range(self.batch_size]])
+        image_batch = [self.buffer[i].observation_history[:unroll_steps] for i in range(self.batch_size)]
+        action_batch = [self.buffer[i].action_history[:unroll_steps] for i in range(self.batch_size)]
+        target_batch = [self.buffer[i].reward_history[:unroll_steps] for i in range(self.batch_size)]
+        return jnp.array(image_batch), jnp.array(action_batch), jnp.array(target_batch)
 
-        return (image_batch, action_batch, target_batch)
