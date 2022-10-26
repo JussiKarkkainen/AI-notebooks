@@ -43,12 +43,15 @@ class Trainer:
         init = True
 
         for images, actions, targets in zip(image_batch, action_batch, target_batch):
+            images = images.reshape(images.shape[0], images.shape[1])
+            actions = actions.reshape(actions.shape[0], 1)
+            targets = targets.reshape(targets.shape[0], 1)
             init_out = self.model.initial_inference(images)
             predictions = [(1., init_out.value, init_out.reward, init_out.policy_logits)]
 
             # Dynamics needs to be trained on sequence of actions
-            for action in actions:
-                rec_out = self.model.recurrent_inference(init_out.hidden_state, action)
+            for i, action in enumerate(actions):
+                rec_out = self.model.recurrent_inference(init_out.hidden_state[i], action)
                 predictions.append((1.0 / len(actions), rec_out.value, rec_out.reward, 
                     rec_out.policy_logits))
                 
