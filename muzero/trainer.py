@@ -41,23 +41,36 @@ class Trainer:
         
         loss = 0
         init = True
+        
 
         for images, actions, targets in zip(image_batch, action_batch, target_batch):
+            
             images = images.reshape(images.shape[0], images.shape[1])
             actions = actions.reshape(actions.shape[0], 1)
             targets = targets.reshape(targets.shape[0], 1)
+            
+            # Images -> for each observation in batch, unroll the position num_unroll_steps into the future
+            #           using actions provided in batch. Initial inference is used for the first observation
+            #           to predict the value, reward and policy and compare these to the target value, target 
+            #           reward and target policy
             init_out = self.model.initial_inference(images)
+            
             predictions = [(1., init_out.value, init_out.reward, init_out.policy_logits)]
 
-            # Dynamics needs to be trained on sequence of actions
+            # For subsequent actions, we will use the recurrent_inference function to predict the value, 
+            # reward and policy and compare to the target value, target reward and target policy
             for i, action in enumerate(actions):
                 rec_out = self.model.recurrent_inference(init_out.hidden_state[i], action)
                 predictions.append((1.0 / len(actions), rec_out.value, rec_out.reward, 
                     rec_out.policy_logits))
                 
+                # hidden_state = scale_grad(hidden_state, 0.5)    
+
+            # Compare predictions to targets given in batch
             for pred, target in zip(predictions, targets):
                 gradient_scale, value, reward, policy = pred
                 target_value, target_reward, target_policy = target
+                # MSE or CrossEntropy ?
                 l = ((value - target_value)**2 + (reward - target_reward)**2 + \
                         optax.softmax_cross_entropy(policy, target_policy))
                 

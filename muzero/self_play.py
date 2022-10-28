@@ -204,6 +204,8 @@ class GameHistory:
         self.action_history = []
         self.observation_history = []
         self.reward_history = []
+        self.root_values = []
+        self.child_visits = []
 
     def get_stacked_observations(self, index, num_stacked, action_space_size):
         pass
