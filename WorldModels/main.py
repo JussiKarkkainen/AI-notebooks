@@ -1,14 +1,18 @@
 import argparse
+import weights
+from dataset import Dataset
+from trainer import Trainer
 
 class WorldModel:
     def __init__(self):
-        self.config = make_carracing_config()
+        pass
 
     def train(self):
         print("Starting training")
         print("___________________\n\n")
-
-        model = Trainer(self.config).train()
+        dataset = Dataset().rollout()
+        print("Finished creating dataset for VAE")
+        model = Trainer(dataset).train()
         weights.save_model(model)
         print("Finished training")
 

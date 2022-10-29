@@ -1,6 +1,5 @@
 import gymnasium as gym
 
-
 class Game:
     def __init__(self):
         self.env = gym.make("CarRacing-v2")

@@ -2,17 +2,19 @@ import jax.numpy as jnp
 import jax
 import haiku as hk
 import optax
+from typing import NamedTuple, Optional
 
-class ConvVaeEncoder(hk.module):
-    stride: 2
-    kernel_size: 4
-    out_channels_1: 32
-    out_channels_2: 64
-    out_channels_3: 128
-    out_channels_4: 256
-    kernel_size: 4
+class ConvVaeEncoder(hk.Module):
+    stride = 2
+    padding = 'VALID' # Means no padding
+    kernel_size = 4
+    out_channels_1 = 32
+    out_channels_2 = 64
+    out_channels_3 = 128
+    out_channels_4 = 256
     fc_size = 32
-    
+    key = jax.random.PRNGKey(seed=42)
+
     def __call__(self, x):
         # Input is 64x64x3
         # 4 conv layers
@@ -21,35 +23,37 @@ class ConvVaeEncoder(hk.module):
         # 3. relu conv, out_channels=128, kernel_size=4, stride=2
         # 4. relu conv, out_channels=256, kernel_size=4, stride=2
         # Latent vector Z_n = 32
-        conv1 = hk.Conv2d(self.out_channels_1, self.kernel_size, stride=self.stride)(x)
+        conv1 = hk.Conv2D(self.out_channels_1, self.kernel_size, stride=self.stride, padding=self.padding)(x)
         conv1 = jax.nn.relu(conv1)
-        conv2 = hk.Conv2d(self.out_channels_2, self.kernel_size, stride=self.stride)(conv1)
+        conv2 = hk.Conv2D(self.out_channels_2, self.kernel_size, stride=self.stride, padding=self.padding)(conv1)
         conv2 = jax.nn.relu(conv2)
-        conv3 = hk.Conv2d(self.out_channels_3, self.kernel_size, stride=self.stride)(conv2)
+        conv3 = hk.Conv2D(self.out_channels_3, self.kernel_size, stride=self.stride, padding=self.padding)(conv2)
         conv3 = jax.nn.relu(conv3)
-        conv4 = hk.Conv2d(self.out_channels_4, self.kernel_size, stride=self.stride)(conv3)
+        conv4 = hk.Conv2D(self.out_channels_4, self.kernel_size, stride=self.stride, padding=self.padding)(conv3)
         conv4 = jax.nn.relu(conv4)
         # Flattens on everything except batch dimension
-        fc_in = hk.Flatten(conv4)
+        fc_in = hk.Flatten(preserve_dims=1)(conv4)
         # Is this correct ?
-        mu = hk.Linear(fc_size)(conv4)
-        sigma = hk.Linear(fc_size)(conv4)
+        mu = hk.Linear(self.fc_size)(fc_in)
+        sigma = hk.Linear(self.fc_size)(fc_in)
         z = self.reparameterize(mu, sigma)
         return z
     
     # Check if this is correct
     def reparameterize(self, mu, sigma):
         std = jnp.exp(0.5*sigma)
-        eps = jnp.random.randn(std.shape)
-        return jnp.add(jnp.mul(eps, std), mu)
+        eps = jax.random.normal(self.key, std.shape)
+        return jnp.add(jnp.multiply(eps, std), mu)
 
 class ConvVaeDecoder(hk.Module):
-    stride: 2
-    kernel_size: 4
-    out_channels_1: 128
-    out_channels_2: 64
-    out_channels_3: 32
-    out_channels_4: 3
+    stride = 2
+    padding = 'VALID'
+    kernel_size = 5
+    out_channels_1 = 128
+    out_channels_2 = 64
+    out_channels_3 = 32
+    out_channels_4 = 3
+    
 
     def __call__(self, x):
         # (H, W, C)
@@ -61,18 +65,19 @@ class ConvVaeDecoder(hk.Module):
         # 3. relu deconv, out_channels=32, kernel_size=6, stride=2
         # 4. sigmoid deconv, out_channels=3, kernel_size=6, stride=2
         fc = hk.Linear(1024)(x)
-        fc = fc.reshape(1024, 1, 1)
-        conv1 = hk.Conv2d(self.out_shannels_1, self.kernel_size, stride=self.stride)(fc)
+        fc = fc.reshape(-1, 1, 1, 1024)
+        conv1 = hk.Conv2DTranspose(self.out_channels_1, self.kernel_size, stride=self.stride, padding=self.padding)(fc)
         conv1 = jax.nn.relu(conv1)
-        conv2 = hk.Conv2d(self.out_channels_2, self.kernel_size, stride=self_stride)(conv1)
+        conv2 = hk.Conv2DTranspose(self.out_channels_2, self.kernel_size, stride=self.stride, padding=self.padding)(conv1)
         conv2 = jax.nn.relu(conv2)
-        conv3 = hk.Conv2d(self.out_channels_3, self.kernel_size, stride=self.stride)(conv2)
+        conv3 = hk.Conv2DTranspose(self.out_channels_3, self.kernel_size, stride=self.stride, padding=self.padding)(conv2)
         conv3 = jax.nn.relu(conv3)
-        conv4 = hk.Conv2d(self.out_channels_4, self.kernel_size, stride=self.stride)(conv3)
+        conv4 = hk.Conv2DTranspose(self.out_channels_4, self.kernel_size, stride=self.stride, padding=self.padding)(conv3)
         conv4 = jax.nn.sigmoid(conv4)
+        print(conv4.shape)
         return conv4
 
-class ConvVAE(hk.module):
+class ConvVAE(hk.Module):
     '''
     Vision model is a variational autoencoder
     '''
@@ -88,7 +93,7 @@ class LSTMstate(NamedTuple):
 
 
 class LSTM(hk.Module):
-    hidden_units: 256
+    hidden_units = 256
 
     # See figure 23 from paper
     def __call__(self, x, action, hidden):
@@ -117,11 +122,22 @@ def add_batch(nest, batch_size: Optional[int]):
     return jax.tree_util.tree_map(broadcast, nest)
 
 
+class Controller(hk.Module):
+    # What size?
+    fc_size = 128
+
+    def __call__(self, z, h):
+        # Linear layer that maps the concatenated input vector [z, h]
+        # into an action vector
+        z_h = jnp.concatenate(z, h, axis=1)
+        a_t = hk.Linear(fc_size)(z_h)
+        return a_t
+
 class FullModel(hk.Module):
-    batch_size: 32
-    init: True
+    batch_size = 32
+    init = True
     #TODO: Figure out action space
-    action_space: 10
+    action_space = 3
 
     def __call__(self, x):
         # Take raw observation from env and feed it into the V model (VAE) to
