@@ -8,13 +8,14 @@ class WorldModel:
         pass
 
     def train(self):
-        print("Starting training")
+        print("Creating dataset")
         print("___________________\n\n")
-        dataset = Dataset().rollout()
-        print("Finished creating dataset for VAE")
-        model = Trainer(dataset).train()
-        weights.save_model(model)
+        dataset, episodes = Dataset().rollout()
+        print("Finished creating dataset for VAE\n")
+        print("Starting training\n")
+        model_state = Trainer(dataset, episodes).train()
         print("Finished training")
+        weights.save_model(model_state)
 
     def test(self, path=None):
         print("Starting test")

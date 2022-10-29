@@ -35,9 +35,9 @@ class ConvVaeEncoder(hk.Module):
         fc_in = hk.Flatten(preserve_dims=1)(conv4)
         # Is this correct ?
         mu = hk.Linear(self.fc_size)(fc_in)
-        sigma = hk.Linear(self.fc_size)(fc_in)
-        z = self.reparameterize(mu, sigma)
-        return z
+        std = hk.Linear(self.fc_size)(fc_in)
+        z = self.reparameterize(mu, std)
+        return z, mu, std
     
     # Check if this is correct
     def reparameterize(self, mu, sigma):
@@ -48,7 +48,8 @@ class ConvVaeEncoder(hk.Module):
 class ConvVaeDecoder(hk.Module):
     stride = 2
     padding = 'VALID'
-    kernel_size = 5
+    kernel_size_1 = 5
+    kernel_size_2 = 6
     out_channels_1 = 128
     out_channels_2 = 64
     out_channels_3 = 32
@@ -66,15 +67,14 @@ class ConvVaeDecoder(hk.Module):
         # 4. sigmoid deconv, out_channels=3, kernel_size=6, stride=2
         fc = hk.Linear(1024)(x)
         fc = fc.reshape(-1, 1, 1, 1024)
-        conv1 = hk.Conv2DTranspose(self.out_channels_1, self.kernel_size, stride=self.stride, padding=self.padding)(fc)
+        conv1 = hk.Conv2DTranspose(self.out_channels_1, self.kernel_size_1, stride=self.stride, padding=self.padding)(fc)
         conv1 = jax.nn.relu(conv1)
-        conv2 = hk.Conv2DTranspose(self.out_channels_2, self.kernel_size, stride=self.stride, padding=self.padding)(conv1)
+        conv2 = hk.Conv2DTranspose(self.out_channels_2, self.kernel_size_1, stride=self.stride, padding=self.padding)(conv1)
         conv2 = jax.nn.relu(conv2)
-        conv3 = hk.Conv2DTranspose(self.out_channels_3, self.kernel_size, stride=self.stride, padding=self.padding)(conv2)
+        conv3 = hk.Conv2DTranspose(self.out_channels_3, self.kernel_size_2, stride=self.stride, padding=self.padding)(conv2)
         conv3 = jax.nn.relu(conv3)
-        conv4 = hk.Conv2DTranspose(self.out_channels_4, self.kernel_size, stride=self.stride, padding=self.padding)(conv3)
+        conv4 = hk.Conv2DTranspose(self.out_channels_4, self.kernel_size_2, stride=self.stride, padding=self.padding)(conv3)
         conv4 = jax.nn.sigmoid(conv4)
-        print(conv4.shape)
         return conv4
 
 class ConvVAE(hk.Module):
@@ -83,9 +83,9 @@ class ConvVAE(hk.Module):
     '''
     def __call__(self, x):
         # See figure 22 -> https://arxiv.org/pdf/1803.10122.pdf
-        encoded = ConvVaeEncoder()(x)
+        encoded, mu, std = ConvVaeEncoder()(x)
         decoded = ConvVaeDecoder()(encoded)
-        return encoded, decoded
+        return encoded, mu, std, decoded
 
 class LSTMstate(NamedTuple):
     hidden: jnp.ndarray
