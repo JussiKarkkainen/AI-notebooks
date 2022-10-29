@@ -5,7 +5,7 @@ import optax
 from typing import NamedTuple
 from models import ConvVAE
 
-class VAETrainerState(NamedTuple):
+class VAETrainingState(NamedTuple):
     params: hk.Params
     opt_state: optax.OptState
 
@@ -34,8 +34,11 @@ class Trainer:
 
     def make_initial_state(self, rng, x):
         init_params = self.forward.init(rng, x)
-        opt_state = self.optimizer.init(init_params)
+        opt_state = self.optimizer(0).init(init_params)
         return VAETrainingState(params=init_params, opt_state=opt_state)
 
     def train(self):
         initial_state = self.make_initial_state(self.rng, self.dataset.get_batch(self.batch_size))
+         
+
+
