@@ -12,15 +12,18 @@ class WorldModel:
         print("___________________\n\n")
         dataset, episodes = Dataset().rollout()
         print("Finished creating dataset for VAE\n")
-        print("Starting training\n")
-        model_state = Trainer(dataset, episodes).train()
-        print("Finished training")
-        weights.save_model(model_state)
+        print("Starting VAE training\n")
+        vae_model_state, model = VAETrainer(dataset, episodes).train()
+        print("Finished training VAE\n")
+        weights.save_model(vae_model_state, name="vae")
+        print("Starting LSTM training\n")
+        lstm_model_state = LSTMTrainer(dataset, episodes, vae_model_state.params, model).train()
+        weights.save_model(lstm_model_state, name="lstm")
 
     def test(self, path=None):
         print("Starting test")
         print("________________\n\n")
-        model = weigths.load_model(path)
+        model = weigths.load_model("VAE")
         Test(self.config).test()
 
 

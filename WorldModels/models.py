@@ -108,8 +108,8 @@ class LSTM(hk.Module):
         h = jax.nn.sigmoid(o) * jnp.tanh(c)
         return h, LSTMstate(c, o)
         
-    
-    def initial_state(self, batch_size):
+    @staticmethod    
+    def initial_state(batch_size):
         state = LSTMstate(hidden=jnp.zeros([self.hidden_units]),
                           cell=jnp.zeros([self.hidden_size]))
         if batch_size is not None:

@@ -20,6 +20,6 @@ class Dataset:
             for t in range(self.steps):
                 action = self.get_random_action()
                 observation, reward, terminated, truncated, info = self.game.env.step(action)
-                self.buf.save(observation)
+                self.buf.save(observation, action)
         return self.buf, self.episodes*self.steps
 
