@@ -92,26 +92,28 @@ class LSTMstate(NamedTuple):
     cell: jnp.ndarray
 
 
-class LSTM(hk.Module):
-    hidden_units = 256
+class LSTM(hk.RNNCore):
+    def __init__(self, hidden_units=256):
+        super().__init__()
+        self.hidden_units = hidden_units
 
     # See figure 23 from paper
-    def __call__(self, x, action, hidden):
+    def __call__(self, z, a, prev_state):
         # how does action get included, maybe concat with hidden?
-        x_h = jnp.concatenate([x, hidden], axis=-1)
+        x_a = jnp.concatenate([a, prev_state.hidden], axis=-1)
+        x_h = jnp.concatenate([x_a, prev_state.hidden], axis=-1)
         # 4x here because this will be split into 4 parts
-        gated = hk.Linear(4*hidden_units)(x_h)
+        gated = hk.Linear(4*self.hidden_units)(x_h)
         # i = input, g = cell_gate, f = forget_gate, o = output_gate
-        i, g, f, o = jnp.split(gated, indices_or_section=4, axis=-1)
+        i, g, f, o = jnp.split(gated, indices_or_sections=4, axis=-1)
         f = jax.nn.sigmoid(f + 1)
-        c = f * hidden.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
+        c = f * prev_state.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
         h = jax.nn.sigmoid(o) * jnp.tanh(c)
         return h, LSTMstate(c, o)
         
-    @staticmethod    
-    def initial_state(batch_size):
+    def initial_state(self, batch_size):
         state = LSTMstate(hidden=jnp.zeros([self.hidden_units]),
-                          cell=jnp.zeros([self.hidden_size]))
+                          cell=jnp.zeros([self.hidden_units]))
         if batch_size is not None:
             state = add_batch(state, batch_size)
         return state
@@ -122,34 +124,21 @@ def add_batch(nest, batch_size: Optional[int]):
     return jax.tree_util.tree_map(broadcast, nest)
 
 
+class MDM_RNN(hk.Module):
+    def __call__(self, z, a, prev_state):
+        # Takes hidden state of LSTM as input and produces
+        # a propability distribution over z
+        h, (c, o) = LSTM()(z, z, prev_state)
+        pi, mu, sigma = self.mixture_coef(h)
+        return (pi, mu, sigma), (h, c)
+
 class Controller(hk.Module):
     # What size?
-    fc_size = 128
+    fc_size = 3
 
     def __call__(self, z, h):
         # Linear layer that maps the concatenated input vector [z, h]
         # into an action vector
         z_h = jnp.concatenate(z, h, axis=1)
-        a_t = hk.Linear(fc_size)(z_h)
-        return a_t
+        return hk.Linear(fc_size)(z_h)
 
-class FullModel(hk.Module):
-    batch_size = 32
-    init = True
-    #TODO: Figure out action space
-    action_space = 3
-
-    def __call__(self, x):
-        # Take raw observation from env and feed it into the V model (VAE) to
-        # produce latent vector z_t. z_t is fed into the C model (1 layer mlp)
-        # and concatenated with M's (MDN_RNN) hidden state h_t. C outputs an 
-        # action vector a_t. M will take z_t and a_t as input to update h_t
-        # to produce h_t+1.
-        z_t, decoded = ConvVAE()(x)
-        if init:
-            h_t = LSTM.initial_state(batch_size)
-        #TODO: Check axis
-        o_t = jnp.concatenate(z_t, h_t, axis=1)
-        a_t = hk.Linear(action_space)(o_t)
-        # TODO: Combine action and initial state ?
-        h_t, state = LSTM()(z_t, action, initial_state)

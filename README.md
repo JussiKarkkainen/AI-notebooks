@@ -9,4 +9,4 @@ and [PyTorch](https://pytorch.org/).
 - ViT - [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929) (PyTorch)
 - GPT (scaled down) - [(Language Models are Few-Shot Learners)](https://arxiv.org/abs/2005.14165) (JAX/Haiku)
 - MuZero - [(Mastering Atari, Go, Chess and Shogi by Planning with a Learned Model)](https://arxiv.org/abs/1911.08265) (JAX/Haiku)
-- [World Models](https://arxiv.org/abs/1803.10122)
+- [World Models](https://arxiv.org/abs/1803.10122) (JAX/Haiku)

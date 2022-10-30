@@ -1,7 +1,7 @@
-import argparse
+import sys
 import weights
 from dataset import Dataset
-from trainer import Trainer
+import trainer
 
 class WorldModel:
     def __init__(self):
@@ -13,11 +13,12 @@ class WorldModel:
         dataset, episodes = Dataset().rollout()
         print("Finished creating dataset for VAE\n")
         print("Starting VAE training\n")
-        vae_model_state, model = VAETrainer(dataset, episodes).train()
+        vae_model_state, model, vae_encode_batch = trainer.VAETrainer(dataset, episodes).train()
         print("Finished training VAE\n")
         weights.save_model(vae_model_state, name="vae")
         print("Starting LSTM training\n")
-        lstm_model_state = LSTMTrainer(dataset, episodes, vae_model_state.params, model).train()
+        lstm_model_state = trainer.LSTMTrainer(dataset, vae_encode_batch, episodes, 
+                                               vae_model_state.params, model).train()
         weights.save_model(lstm_model_state, name="lstm")
 
     def test(self, path=None):
@@ -28,17 +29,10 @@ class WorldModel:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="WorldWodels")
-    parser.add_argument('--train', help='Train model on CarRacing-v2')
-    parser.add_argument('--test', help='Test with pretrained weights on CarRacin-v2')
-
-    args = parser.parse_args()
-
-    if args.train:
+    if len(sys.argv) > 2:
+        raise Exception("Invalid amount of arguments, use either '--train' or '--test'")
+    if sys.argv[1] == "--train":
         WorldModel().train()
-    elif args.test:
+    elif sys.argv[1] == "--test":
         WorldModel().test()
-    elif args.train and args.test:
-        print("Invalid arguments, choose either train or test but not both")
-    else:
-        WorldModel().test()
+
