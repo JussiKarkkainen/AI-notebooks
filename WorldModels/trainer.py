@@ -20,7 +20,7 @@ class VAETrainer:
         self.train_inputs = dataset.get_train_inputs(self.batch_size)
         self.update_weights = self._update_weights
         self.loss_fn = self._loss_fn
-        self.optimizer = optax.adam(1e-3)
+        self.optimizer = optax.adam(1e-4)
         self.VAEState = VAETrainingState(params=None, opt_state=None) 
         self.num_epochs = (episodes // self.batch_size) - 1
         self.encode_buffer = []
@@ -43,9 +43,9 @@ class VAETrainer:
         L2 distance between the input image and the reconstruction in addition to KL loss.
         '''
         z, mu, logsigma, decoded = self.model.apply(params, inputs)
-        l2 = jnp.sum(optax.l2_loss(image, inputs))
+        l2 = jnp.sum(optax.l2_loss(decoded, inputs))
         kld = -0.5 * jnp.sum(1 + 2*logsigma - jnp.power(mu, 2) - jnp.exp(2*logsigma))
-        return l2 + kld, (z, mu, sigma)
+        return l2 + kld, (z, mu, logsigma)
     
     #@partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs):
@@ -100,7 +100,7 @@ class LSTMTrainer:
         self.lstm_model = hk.without_apply_rng(hk.transform(self._forward))
         self.loss_fn = jax.jit(self._loss_fn)
         self.update_weights = jax.jit(self._update_weights)
-        self.optimizer = optax.adam(1e-3)
+        self.optimizer = optax.adam(1e-4)
         self.num_epochs = (episodes // self.batch_size) - 1
         self.LSTMState = LSTMTrainingState(params=None, opt_state=None)
         '''

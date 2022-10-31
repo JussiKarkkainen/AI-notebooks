@@ -28,7 +28,7 @@ class ReplayBuffer:
     
     def get_train_inputs(self, batch_size, iterator=True):
         dataset = []
-        for i in range(100):
+        for i in range(1000):
             dataset.append(jnp.expand_dims(self.preprocess(self.buffer[i]), axis=0))
         return iter(jnp.array(dataset))
     '''

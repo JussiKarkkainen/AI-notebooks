@@ -78,6 +78,7 @@ class ConvVAE(hk.Module):
     def __call__(self, x):
         # See figure 22 -> https://arxiv.org/pdf/1803.10122.pdf
         mu, logsigma = ConvVaeEncoder()(x)
+        sigma = jnp.exp(logsigma)
         z = mu + sigma * jax.random.normal(self.key, mu.shape)
         decoded = ConvVaeDecoder()(z)
         return z, mu, logsigma, decoded
