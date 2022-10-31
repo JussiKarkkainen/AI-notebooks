@@ -7,7 +7,7 @@ from replay_buffer import ReplayBuffer
 class Dataset:
     def __init__(self):
         self.game = Game()
-        self.episodes = 16  # for now, batch_size = 32 -> need to have 10080 examples = 1080 episodes
+        self.episodes = 128  # for now, batch_size = 32 -> need to have 10080 examples = 1080 episodes
         self.steps = 10 # for now
         self.buf = ReplayBuffer()
 

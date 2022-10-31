@@ -35,16 +35,9 @@ class ConvVaeEncoder(hk.Module):
         fc_in = hk.Flatten(preserve_dims=1)(conv4)
         # Is this correct ?
         mu = hk.Linear(self.fc_size)(fc_in)
-        std = hk.Linear(self.fc_size)(fc_in)
-        z = self.reparameterize(mu, std)
-        return z, mu, std
+        logsigma = hk.Linear(self.fc_size)(fc_in)
+        return mu, logsigma
     
-    # Check if this is correct
-    def reparameterize(self, mu, sigma):
-        std = jnp.exp(0.5*sigma)
-        eps = jax.random.normal(self.key, std.shape)
-        return jnp.add(jnp.multiply(eps, std), mu)
-
 class ConvVaeDecoder(hk.Module):
     stride = 2
     padding = 'VALID'
@@ -55,7 +48,6 @@ class ConvVaeDecoder(hk.Module):
     out_channels_3 = 32
     out_channels_4 = 3
     
-
     def __call__(self, x):
         # (H, W, C)
         # Input is 32
@@ -81,11 +73,14 @@ class ConvVAE(hk.Module):
     '''
     Vision model is a variational autoencoder
     '''
+    key = jax.random.PRNGKey(seed=42)
+
     def __call__(self, x):
         # See figure 22 -> https://arxiv.org/pdf/1803.10122.pdf
-        encoded, mu, std = ConvVaeEncoder()(x)
-        decoded = ConvVaeDecoder()(encoded)
-        return encoded, mu, std, decoded
+        mu, logsigma = ConvVaeEncoder()(x)
+        z = mu + sigma * jax.random.normal(self.key, mu.shape)
+        decoded = ConvVaeDecoder()(z)
+        return z, mu, logsigma, decoded
 
 class LSTMstate(NamedTuple):
     hidden: jnp.ndarray
@@ -131,6 +126,9 @@ class MDM_RNN(hk.Module):
         h, (c, o) = LSTM()(z, z, prev_state)
         pi, mu, sigma = self.mixture_coef(h)
         return (pi, mu, sigma), (h, c)
+    
+    def mixture_coef(self, h):
+        pass
 
 class Controller(hk.Module):
     # What size?

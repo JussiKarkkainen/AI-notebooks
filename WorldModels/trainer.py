@@ -4,6 +4,7 @@ import haiku as hk
 import optax
 import wandb
 from typing import NamedTuple
+from functools import partial
 import models
 
 class VAETrainingState(NamedTuple):
@@ -17,13 +18,12 @@ class VAETrainer:
         self.rng = jax.random.PRNGKey(seed=42)
         self.batch_size = 32
         self.train_inputs = dataset.get_train_inputs(self.batch_size)
-        self.update_weights = jax.jit(self._update_weights)
-        self.loss_fn = jax.jit(self._loss_fn)
+        self.update_weights = self._update_weights
+        self.loss_fn = self._loss_fn
         self.optimizer = optax.adam(1e-3)
         self.VAEState = VAETrainingState(params=None, opt_state=None) 
         self.num_epochs = (episodes // self.batch_size) - 1
         self.encode_buffer = []
-
         '''
         wandb.init(project="WorldModel VAE")
         wandb.config = {
@@ -34,23 +34,25 @@ class VAETrainer:
         '''
     def _forward(self, x):
         net = models.ConvVAE()
-        z, mu, std, decoded = net(x)
-        return decoded, mu, std, z
+        z, mu, sigma, decoded = net(x)
+        return z, mu, sigma, decoded
 
+    #@partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, inputs):
         ''' 
         L2 distance between the input image and the reconstruction in addition to KL loss.
         '''
-        y_hat, mu, std, z = self.model.apply(params, inputs)
-        l2 = jnp.sum(optax.l2_loss(y_hat, inputs))
-        kld = 0.5 * jnp.sum(1 + jnp.log(jnp.power(std, 2)) - jnp.power(mu, 2) - jnp.power(std, 2))
-        return l2 + kld, (z, mu, std)
-
+        z, mu, logsigma, decoded = self.model.apply(params, inputs)
+        l2 = jnp.sum(optax.l2_loss(image, inputs))
+        kld = -0.5 * jnp.sum(1 + 2*logsigma - jnp.power(mu, 2) - jnp.exp(2*logsigma))
+        return l2 + kld, (z, mu, sigma)
+    
+    #@partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0, has_aux=True)
         # ((value, aux), grads)
         loss_aux, grads = grad_fn(state.params, inputs)
-        updates, opt_state = self.optimizer.update(state.params, state.opt_state)
+        updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
         return VAETrainingState(params=params, opt_state=opt_state), loss_aux[0], loss_aux[1]
 
@@ -59,17 +61,17 @@ class VAETrainer:
         opt_state = self.optimizer.init(init_params)
         return VAETrainingState(params=init_params, opt_state=opt_state)
 
-    def step(self):
-        inputs = next(self.train_inputs)
+    def step(self, inputs):
         self.VAEState, loss, aux = self.update_weights(self.VAEState, inputs)
         return loss, aux
 
     def train(self):
         dummy_inputs = next(self.train_inputs)
         self.VAEState = self.make_initial_state(self.rng, dummy_inputs) 
-        for i in range(self.num_epochs - 1):
-            loss, aux = self.step()
+        for data in self.train_inputs:
+            loss, aux = self.step(data)
             self.encode_buffer.append(aux)
+            print(loss)
             #wandb.log({"loss": loss}) 
 
         return self.VAEState, self.model, self.encode_buffer
