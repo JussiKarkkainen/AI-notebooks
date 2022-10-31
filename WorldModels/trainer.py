@@ -37,7 +37,7 @@ class VAETrainer:
         z, mu, sigma, decoded = net(x)
         return z, mu, sigma, decoded
 
-    #@partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, inputs):
         ''' 
         L2 distance between the input image and the reconstruction in addition to KL loss.
@@ -47,7 +47,7 @@ class VAETrainer:
         kld = -0.5 * jnp.sum(1 + 2*logsigma - jnp.power(mu, 2) - jnp.exp(2*logsigma))
         return l2 + kld, (z, mu, logsigma)
     
-    #@partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0, has_aux=True)
         # ((value, aux), grads)
@@ -111,7 +111,7 @@ class LSTMTrainer:
             "batch_size": 32
         }
         '''
-    def _forward(self, z, a):
+    def _unroll_net(self, z, a):
         lstm_net = models.LSTM()
         lstm_initial_state = lstm_net.initial_state(32)
         state = lstm_net(z, a, lstm_initial_state)
@@ -135,20 +135,18 @@ class LSTMTrainer:
         opt_state = self.optimizer.init(init_params)
         return LSTMTrainingState(params=init_params, opt_state=opt_state)
 
-    def step(self):
-        z = next(self.vae_encode_batch)
-        a = next(self.train_actions)
-        y = next(self.train_labels)
-        self.LSTMState, loss = self.update_weights(self.LSTMState, z, a, y)
+    def step(self, x, a):
+        # TODO: Input should be of shape (batch_size, seq_len, H, W, C) 
+        z, mu, logsigma, decoded = self.v_model.apply(self.v_model_params, x) 
+        self.LSTMState, loss = self.update_weights(self.LSTMState, z, a)
         return loss
 
     def train(self):
-        # TODO: get rid of magic values
         dummy_z = next(self.vae_encode_batch)
         dummy_a = next(self.train_actions)
         self.LSTMState = self.make_initial_state(self.rng, dummy_z, dummy_a)
-        for i in range(self.num_epochs - 1):
-            loss = self.step()
+        for x, a in zip(self.train_inputs, self.train_actions):
+            loss = self.step(x, a)
             #wandb.log(["loss": loss])
 
         return self.LSTMState, self.lstm_model

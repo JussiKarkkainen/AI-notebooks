@@ -25,6 +25,7 @@ class ReplayBuffer:
             dataset.append(batch)
         dataset = jnp.array(dataset)
         return iter(dataset)
+    '''
     
     def get_train_inputs(self, batch_size, iterator=True):
         dataset = []
@@ -40,10 +41,8 @@ class ReplayBuffer:
                 batch.append(self.preprocess(self.buffer[j+i]))
             dataset.append(batch)
         dataset = jnp.array(dataset)
-        print(dataset.shape)
-        assert dataset[0].all() == dataset[1].all()
         return iter(dataset) if iterator else dataset
-    '''
+    
     def get_train_actions(self, batch_size, iterator=True):
         dataset = []
         index = 0
