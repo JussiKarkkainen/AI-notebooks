@@ -3,9 +3,10 @@ import jax.numpy as jnp
 import skimage
 
 class ReplayBuffer:
-    def __init__(self):
+    def __init__(self, seq_len):
         self.buffer = []
         self.act_buffer = []
+        self.seq_len = seq_len
 
     def save(self, observation, action):
         self.buffer.append(jnp.array(observation))
@@ -14,25 +15,39 @@ class ReplayBuffer:
     def get_image(self):
         return self.preprocess(self.buffer[100])
 
-    def get_targets(self, batch_size):
+    def get_seq_targets(self, batch_size):
+        # TODO: return batch_size amount of batches
         dataset = []
-        index = 0
-        for i in range((len(self.buffer) // batch_size) - 1):
+        index = self.seq_len
+        for i in range(len(self.buffer) // self.seq_len - 1):
             batch = []
-            for j in range(batch_size):
-                batch.append(self.preprocess(self.buffer[index+j+1]))
-            index += batch_size
+            for j in range(self.seq_len):
+                batch.append(self.preprocess(self.buffer[index+j]))
+            index += self.seq_len
             dataset.append(batch)
         dataset = jnp.array(dataset)
-        return iter(dataset)
-    '''
+        print(dataset.shape)
+        raise Exception("dwe")
+        return dataset
     
-    def get_train_inputs(self, batch_size, iterator=True):
+    def get_seq_inputs(self, batch_size):
+        '''
+        Returns batches of sequences of images
+        '''
+        # TODO: return batch_size amount of batches
         dataset = []
-        for i in range(1000):
-            dataset.append(jnp.expand_dims(self.preprocess(self.buffer[i]), axis=0))
-        return iter(jnp.array(dataset))
-    '''
+        index = 0
+        for i in range(len(self.buffer) // self.seq_len - 1):
+            batch = []
+            for j in range(self.seq_len):
+                batch.append(self.preprocess(self.buffer[index+j]))
+            index += self.seq_len
+            dataset.append(batch)
+        dataset = jnp.array(dataset)
+        print(dataset.shape)
+        return dataset
+
+
     def get_train_inputs(self, batch_size, iterator=True):
         dataset = []
         for i in range(0, len(self.buffer), batch_size):
