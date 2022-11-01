@@ -7,9 +7,9 @@ from replay_buffer import ReplayBuffer
 class Dataset:
     def __init__(self):
         self.game = Game()
-        self.episodes = 64  # for now, batch_size = 32 -> need to have 10080 examples = 1080 episodes
-        self.steps = 100 # for now
-        self.buf = ReplayBuffer()
+        self.episodes = 16 
+        self.seq_len = 10 
+        self.buf = ReplayBuffer(self.seq_len)
 
     def get_random_action(self):
         return self.game.env.action_space.sample()
@@ -17,9 +17,9 @@ class Dataset:
     def rollout(self):
         for i in range(self.episodes):
             obs = self.game.env.reset()
-            for t in range(self.steps):
+            for t in range(self.seq_len):
                 action = self.get_random_action()
                 observation, reward, terminated, truncated, info = self.game.env.step(action)
                 self.buf.save(observation, action)
-        return self.buf, self.episodes*self.steps
+        return self.buf, self.episodes*self.seq_len
 

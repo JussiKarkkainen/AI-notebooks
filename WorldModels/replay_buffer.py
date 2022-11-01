@@ -15,10 +15,10 @@ class ReplayBuffer:
     def get_image(self):
         return self.preprocess(self.buffer[100])
 
-    def get_seq_targets(self, batch_size):
+    def seq_getter(self, batch_size, targets=False):
         # TODO: return batch_size amount of batches
         dataset = []
-        index = self.seq_len
+        index = self.seq_len if targets else 0 
         for i in range(len(self.buffer) // self.seq_len - 1):
             batch = []
             for j in range(self.seq_len):
@@ -27,23 +27,6 @@ class ReplayBuffer:
             dataset.append(batch)
         dataset = jnp.array(dataset)
         return dataset
-    
-    def get_seq_inputs(self, batch_size):
-        '''
-        Returns batches of sequences of images
-        '''
-        # TODO: return batch_size amount of batches
-        dataset = []
-        index = 0
-        for i in range(len(self.buffer) // self.seq_len - 1):
-            batch = []
-            for j in range(self.seq_len):
-                batch.append(self.preprocess(self.buffer[index+j]))
-            index += self.seq_len
-            dataset.append(batch)
-        dataset = jnp.array(dataset)
-        return dataset
-
 
     def get_train_inputs(self, batch_size, iterator=True):
         dataset = []

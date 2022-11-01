@@ -14,21 +14,22 @@ class WorldModel:
         self.dataset, episodes = Dataset().rollout()
         print("Finished creating dataset for VAE\n")
         print("Starting VAE training\n")
-        self.vae_model_state, self.model, vae_encode_batch = trainer.VAETrainer(self.dataset, episodes).train()
+        #self.vae_model_state, self.model, vae_encode_batch = trainer.VTrainer(self.dataset, 
+        #                                                                        episodes).train()
         print("Finished training VAE\n")
-        weights.save_model(self.vae_model_state, name="vae")
+        #weights.save_model(self.vae_model_state, name="vae")
+        vae_params = weights.load_model("vae")
         print("Starting LSTM training\n")
-        #lstm_model_state = trainer.LSTMTrainer(dataset, vae_encode_batch, episodes, 
-        #                                       vae_model_state.params, model).train()
+        lstm_model_state = trainer.MTrainer(self.dataset, episodes, vae_params).train()
         #weights.save_model(lstm_model_state, name="lstm")
-        self.test()
+        #self.test()
 
 
     def test(self, path=None):
         print("Starting test")
         print("________________\n\n")
         model_params = weights.load_model("vae")
-        Test(self.vae_model_state, self.model, self.dataset).test_vae()
+        Test(model_params, self.dataset).test_vae()
 
 
 if __name__ == "__main__":

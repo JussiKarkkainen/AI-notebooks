@@ -76,8 +76,7 @@ class VTrainer:
 
         return self.VAEState, self.model, self.encode_buffer
 
-class LSTMTrainingState(NamedTuple):
-    #lstm_state: models.LSTMstate
+class MDNRNNTrainingState(NamedTuple):
     params: hk.Params
     opt_state: optax.OptState
 
@@ -87,22 +86,22 @@ class MTrainer:
         
         self.episodes = episodes
         self.batch_size = 32
-        self.train_inputs = dataset.get_seq_inputs(self.batch_size)
-        self.train_targets = dataset.get_seq_targets(self.batch_size)
+        self.train_inputs = dataset.seq_getter(self.batch_size)
+        self.train_targets = dataset.seq_getter(self.batch_size, targets=True)
         self.train_actions = dataset.get_train_actions(self.batch_size)
         self.rng = jax.random.PRNGKey(seed=42)
         self.m_model = hk.without_apply_rng(hk.transform(self._unroll_rnn))
-        self.loss_fn = jax.jit(self._loss_fn)
-        self.update_weights = jax.jit(self._update_weights)
+        self.loss_fn = self._loss_fn
+        self.update_weights = self._update_weights
         self.optimizer = optax.adam(1e-4)
         self.num_epochs = (episodes // self.batch_size) - 1
-        self.LSTMState = LSTMTrainingState(params=None, opt_state=None)
+        self.MDNRNNState = MDNRNNTrainingState(params=None, opt_state=None)
         
         self.v_model_params = v_model_params # Train M-model together with fixed params of V-model
         self.v_model = hk.without_apply_rng(hk.transform(self.v_forward)) 
 
         '''
-        wandb.init(project="WorldModel LSTM")
+        wandb.init(project="WorldModel MDNRNN")
         wandb.config = {
             "learning_rate": 1e-3,
             "epochs": self.num_epochs,
@@ -115,34 +114,37 @@ class MTrainer:
         return z
     
     def _unroll_rnn(self, z, a):
-        lstm_net = models.LSTM()
-        lstm_initial_state = lstm_net.initial_state(32)
-        state = lstm_net(z, a, lstm_initial_state)
+        mdn_rnn = models.MDM_RNN()
+        lstm_initial_state = mdn_rnn.initial_state(z.shape[0])
+        state = mdn_rnn(z, a, lstm_initial_state)
         return state
 
+    @partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, z, a, y):
         # MDM-RNN predicts z_t+1 = y
         state = self.lstm_model.apply(params, z, a)
         loss = optax.cross_entropy_loss(state, y)
         return loss
         
-    def _update_weights(self, state, inputs, actions, targets):
+    @partial(jax.jit, static_argnums=(0,))
+    def _update_weights(self, state, inputs, targets, actions):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
         loss, grads = grad_fn(state.params, inputs, actions, targets)
-        updates, opt_state = self.optimizer.update(state.params, state.opt_state)
+        updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
-        return LSTMTrainingState(params=params, opt_state=opt_state)
+        return MDNRNNTrainingState(params=params, opt_state=opt_state)
 
     def make_initial_state(self, rng, z, action):
         init_params = self.m_model.init(rng, z, action)
         opt_state = self.optimizer.init(init_params)
-        return LSTMTrainingState(params=init_params, opt_state=opt_state)
+        return MDNRNNTrainingState(params=init_params, opt_state=opt_state)
     
     def get_latents(self, obs, targets):
         ''' 
-        Turn observations to latents so they can be used by M-model
+        Turn observations to latent vectors so they can be used by M-model
         obs.shape is (bs, seq_len, h, w, c) loop over batches and sequences to produce latents
         '''
+        # TODO: check if correct
         latents, target_latents = [], []
         for i in range(obs.shape[0]):
             o_batch, t_batch = [], []
@@ -157,7 +159,7 @@ class MTrainer:
 
     def step(self, z_t, z_t1, a):
         # z_t should be of shape (batch_size, seq_len, H, W, C) 
-        self.LSTMState, loss = self.update_weights(self.LSTMState, z_t, z_t1, a)
+        self.MDNRNNState, loss = self.update_weights(self.MDNRNNState, z_t, z_t1, a)
         return loss
 
     def train(self):
@@ -165,12 +167,11 @@ class MTrainer:
         train_inputs = jnp.expand_dims(self.train_inputs, axis=0)
         train_targets = jnp.expand_dims(self.train_targets, axis=0)
         latents, target_latents = self.get_latents(self.train_inputs, self.train_targets)
-        self.LSTMState = self.make_initial_state(self.rng, latents[0], actions[0])
-        raise Exception("Not finished")
+        self.MDNRNNState = self.make_initial_state(self.rng, latents[0], actions[0])
         # Latents should be of shape (n, bs, seq_len, h, w, c)
         for z_t, z_t1, a in zip(latents, self.target_latents, actions):
             loss = self.step(z_t, z_t1, a)
             #wandb.log(["loss": loss])
 
-        return self.LSTMState, self.lstm_model
+        return self.MDNRNNState, self.lstm_model
 

@@ -61,7 +61,7 @@ class LSTMstate(NamedTuple):
     cell: jnp.ndarray
 
 
-class LSTM(hk.RNNCore):
+class LSTM(hk.Module):
     def __init__(self, hidden_units=256):
         super().__init__()
         self.hidden_units = hidden_units
@@ -79,31 +79,26 @@ class LSTM(hk.RNNCore):
         c = f * prev_state.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
         h = jax.nn.sigmoid(o) * jnp.tanh(c)
         return h, LSTMstate(c, o)
-        
+
+class MDM_RNN(hk.Module):
+    def __init__(self):
+        super().__init__()
+        self.n_gaussian = 5
+        self.hidden_units = 256
+
+    def __call__(self, z, a, prev_state):
+        # Takes hidden state of LSTM as input and produces
+        # a propability distribution over z
+        h, (c, o) = LSTM()(z, a, prev_state)
+        pi, mu, sigma = self.mixture_coef(h)
+        return (pi, mu, sigma), (h, c)
+    
     def initial_state(self, batch_size):
         state = LSTMstate(hidden=jnp.zeros([self.hidden_units]),
                           cell=jnp.zeros([self.hidden_units]))
         if batch_size is not None:
             state = add_batch(state, batch_size)
         return state
-
-def add_batch(nest, batch_size: Optional[int]):
-    """Adds a batch dimension at axis 0 to the leaves of a nested structure."""
-    broadcast = lambda x: jnp.broadcast_to(x, (batch_size,) + x.shape)
-    return jax.tree_util.tree_map(broadcast, nest)
-
-
-class MDM_RNN(hk.Module):
-    def __init__(self):
-        self.lstm = LSTM()
-        self.n_gaussian = 5
-
-    def __call__(self, z, a, prev_state):
-        # Takes hidden state of LSTM as input and produces
-        # a propability distribution over z
-        h, (c, o) = self.lstm(z, a, prev_state)
-        pi, mu, sigma = self.mixture_coef(h)
-        return (pi, mu, sigma), (h, c)
     
     def mixture_coef(self, h):
         pi = hk.Linear(self.n_gaussian)(h)
@@ -112,6 +107,11 @@ class MDM_RNN(hk.Module):
         sigma = jnp.exp(logsigma)
         pi = jax.nn.softmax(pi)
         return pi, mu, sigma
+
+def add_batch(nest, batch_size: Optional[int]):
+    """Adds a batch dimension at axis 0 to the leaves of a nested structure."""
+    broadcast = lambda x: jnp.broadcast_to(x, (batch_size,) + x.shape)
+    return jax.tree_util.tree_map(broadcast, nest)
 
 class Controller(hk.Module):
     # What size?
