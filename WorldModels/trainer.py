@@ -87,11 +87,11 @@ class MTrainer:
         
         self.episodes = episodes
         self.batch_size = 32
-        self.train_inputs = dataset.get_train_inputs(self.batch_size)
+        self.train_inputs = dataset.get_seq_inputs(self.batch_size)
         self.train_targets = dataset.get_seq_targets(self.batch_size)
         self.train_actions = dataset.get_train_actions(self.batch_size)
         self.rng = jax.random.PRNGKey(seed=42)
-        self.m_model = hk.without_apply_rng(hk.transform(self._forward))
+        self.m_model = hk.without_apply_rng(hk.transform(self._unroll_rnn))
         self.loss_fn = jax.jit(self._loss_fn)
         self.update_weights = jax.jit(self._update_weights)
         self.optimizer = optax.adam(1e-4)
@@ -110,7 +110,7 @@ class MTrainer:
         }
         '''
     def v_forward(self, x):
-        v_model = models.ConvVae()
+        v_model = models.ConvVAE()
         z, mu, logsigma, decoded = v_model(x)
         return z
     
@@ -141,7 +141,7 @@ class MTrainer:
     def get_latents(self, obs, targets):
         ''' 
         Turn observations to latents so they can be used by M-model
-        Obs.shape is (bs, seq_len, h, w, c) loop over batches and sequences to produce latents
+        obs.shape is (bs, seq_len, h, w, c) loop over batches and sequences to produce latents
         '''
         latents, target_latents = [], []
         for i in range(obs.shape[0]):
@@ -155,16 +155,19 @@ class MTrainer:
         target_latents = jnp.array(target_latents)
         return latents, target_latents
 
-    def step(self, x, a):
-        # TODO: Input should be of shape (batch_size, seq_len, H, W, C) 
-        z, mu, logsigma, decoded = self.v_model.apply(self.v_model_params, x) 
-        self.LSTMState, loss = self.update_weights(self.LSTMState, z, a)
+    def step(self, z_t, z_t1, a):
+        # z_t should be of shape (batch_size, seq_len, H, W, C) 
+        self.LSTMState, loss = self.update_weights(self.LSTMState, z_t, z_t1, a)
         return loss
 
     def train(self):
         actions = self.train_actions
+        train_inputs = jnp.expand_dims(self.train_inputs, axis=0)
+        train_targets = jnp.expand_dims(self.train_targets, axis=0)
         latents, target_latents = self.get_latents(self.train_inputs, self.train_targets)
-        self.LSTMState = self.make_initial_state(self.rng, dummy_z, dummy_a)
+        self.LSTMState = self.make_initial_state(self.rng, latents[0], actions[0])
+        raise Exception("Not finished")
+        # Latents should be of shape (n, bs, seq_len, h, w, c)
         for z_t, z_t1, a in zip(latents, self.target_latents, actions):
             loss = self.step(z_t, z_t1, a)
             #wandb.log(["loss": loss])

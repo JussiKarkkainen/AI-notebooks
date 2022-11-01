@@ -26,8 +26,6 @@ class ReplayBuffer:
             index += self.seq_len
             dataset.append(batch)
         dataset = jnp.array(dataset)
-        print(dataset.shape)
-        raise Exception("dwe")
         return dataset
     
     def get_seq_inputs(self, batch_size):
@@ -44,7 +42,6 @@ class ReplayBuffer:
             index += self.seq_len
             dataset.append(batch)
         dataset = jnp.array(dataset)
-        print(dataset.shape)
         return dataset
 
 
@@ -58,17 +55,17 @@ class ReplayBuffer:
         dataset = jnp.array(dataset)
         return iter(dataset) if iterator else dataset
     
-    def get_train_actions(self, batch_size, iterator=True):
+    def get_train_actions(self, batch_size):
         dataset = []
         index = 0
-        for i in range((len(self.act_buffer) // batch_size) - 1):
+        for i in range(len(self.act_buffer) // self.seq_len - 1):
             batch = []
-            for j in range(batch_size):
+            for j in range(self.seq_len):
                 batch.append(self.act_buffer[index+j])
-            index += batch_size
+            index += self.seq_len
             dataset.append(batch)
         dataset = jnp.array(dataset)
-        return iter(dataset) if iterator else dataset
+        return dataset
 
     def preprocess(self, image):
         image = jnp.array(image)
