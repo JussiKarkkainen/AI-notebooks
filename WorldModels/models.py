@@ -56,29 +56,59 @@ class ConvVAE(hk.Module):
         decoded = ConvVaeDecoder()(z)
         return z, mu, logsigma, decoded
 
-class LSTMstate(NamedTuple):
+class MDNLSTMstate(NamedTuple):
     hidden: jnp.ndarray
     cell: jnp.ndarray
+    pi: jnp.ndarray
+    mu: jnp.ndarray
+    sigma: jnp.ndarray
 
 
-class LSTM(hk.Module):
-    def __init__(self, hidden_units=256):
+class MDN_LSTM(hk.RNNCore):
+    '''
+    An LSTM core with MDN output
+    '''
+    def __init__(self, hidden_units=256, n_gaussian=5):
         super().__init__()
         self.hidden_units = hidden_units
+        self.n_gaussian = n_gaussian
 
     # See figure 23 from paper
-    def __call__(self, z, a, prev_state):
-        # how does action get included, maybe concat with hidden?
-        x_a = jnp.concatenate([a, prev_state.hidden], axis=-1)
-        x_h = jnp.concatenate([x_a, prev_state.hidden], axis=-1)
+    def __call__(self, inputs, prev_state):
+        # LSTM 
+        z, a = inputs[0], inputs[1]
+        z_a = jnp.concatenate([a, z], axis=-1)
+        z_h = jnp.concatenate([z_a, prev_state.hidden], axis=-1)
         # 4x here because this will be split into 4 parts
-        gated = hk.Linear(4*self.hidden_units)(x_h)
+        gated = hk.Linear(4*self.hidden_units)(z_h)
         # i = input, g = cell_gate, f = forget_gate, o = output_gate
         i, g, f, o = jnp.split(gated, indices_or_sections=4, axis=-1)
         f = jax.nn.sigmoid(f + 1)
         c = f * prev_state.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
         h = jax.nn.sigmoid(o) * jnp.tanh(c)
-        return h, LSTMstate(c, o)
+        # MDN
+        pi = hk.Linear(self.n_gaussian)(h) 
+        mu = hk.Linear(self.n_gaussian)(h) 
+        logsigma = hk.Linear(self.n_gaussian)(h) 
+        sigma = jnp.exp(logsigma)
+        pi = jax.nn.softmax(pi)
+        return h, MDNLSTMState(hidden=h, cell=c, pi=pi, mu=mu, sigma=sigma) 
+    
+    def initial_state(self, batch_size):
+        state = MDNLSTMstate(hidden=jnp.zeros([self.hidden_units]),
+                          cell=jnp.zeros([self.hidden_units]),
+                          pi=None, mu=None, sigma=None)
+        return state
+
+
+
+def mixture_coef(n_gaussian, h):
+    pi = hk.Linear(self.n_gaussian)(h)
+    mu = hk.Linear(self.n_gaussian)(h) 
+    logsigma = hk.Linear(n_gaussian)(h)
+    sigma = jnp.exp(logsigma)
+    pi = jax.nn.softmax(pi)
+    return pi, mu, sigma
 
 class MDM_RNN(hk.Module):
     def __init__(self):
@@ -93,28 +123,10 @@ class MDM_RNN(hk.Module):
         pi, mu, sigma = self.mixture_coef(h)
         return (pi, mu, sigma), (h, c)
     
-    def initial_state(self, batch_size):
-        state = LSTMstate(hidden=jnp.zeros([self.hidden_units]),
-                          cell=jnp.zeros([self.hidden_units]))
-        if batch_size is not None:
-            state = add_batch(state, batch_size)
-        return state
     
-    def mixture_coef(self, h):
-        pi = hk.Linear(self.n_gaussian)(h)
-        mu = hk.Linear(self.n_gaussian)(h) 
-        logsigma = hk.Linear(self.n_gaussian)(h)
-        sigma = jnp.exp(logsigma)
-        pi = jax.nn.softmax(pi)
-        return pi, mu, sigma
 
-def add_batch(nest, batch_size: Optional[int]):
-    """Adds a batch dimension at axis 0 to the leaves of a nested structure."""
-    broadcast = lambda x: jnp.broadcast_to(x, (batch_size,) + x.shape)
-    return jax.tree_util.tree_map(broadcast, nest)
 
 class Controller(hk.Module):
-    # What size?
     fc_size = 3
 
     def __call__(self, z, h):

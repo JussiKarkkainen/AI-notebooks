@@ -114,18 +114,23 @@ class MTrainer:
         return z
     
     def _unroll_rnn(self, z, a):
-        mdn_rnn = models.MDM_RNN()
-        lstm_initial_state = mdn_rnn.initial_state(z.shape[0])
-        state = mdn_rnn(z, a, lstm_initial_state)
-        return state
+        batch_size = z.shape[0]
+        core = models.MDN_LSTM()
+        initial_state = core.initial_state(batch_size)
+        inputs = (z, a)
+        mdn_state, h, lstm_state = hk.dynamic_unroll(core, inputs, initial_state, time_major=False)  
+        return mdn_state
 
     @partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, z, a, y):
         # MDM-RNN predicts z_t+1 = y
-        state = self.lstm_model.apply(params, z, a)
-        loss = optax.cross_entropy_loss(state, y)
-        return loss
-        
+        (pi, mu, sigma), (c, h) = self.m_model.apply(params, z, a)
+        dist = mu + sigma * jax.random.normal(jax.random.PRNGKey(42), mu.shape)
+        loss = jnp.exp(jnp.log(y))
+        loss = jnp.sum(loss * pi, axis=2)
+        loss = -jnp.log(loss)
+        return jnp.mean(loss)
+
     @partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs, targets, actions):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
@@ -169,9 +174,14 @@ class MTrainer:
         latents, target_latents = self.get_latents(self.train_inputs, self.train_targets)
         self.MDNRNNState = self.make_initial_state(self.rng, latents[0], actions[0])
         # Latents should be of shape (n, bs, seq_len, h, w, c)
-        for z_t, z_t1, a in zip(latents, self.target_latents, actions):
+        for z_t, z_t1, a in zip(latents, target_latents, actions):
             loss = self.step(z_t, z_t1, a)
             #wandb.log(["loss": loss])
 
         return self.MDNRNNState, self.lstm_model
 
+class CTrainer:
+    def __init__(self, dataset, episodes, mparams):
+        self.dataset = dataset
+        self.episodes = epsiodes
+        self.mparams = mparams

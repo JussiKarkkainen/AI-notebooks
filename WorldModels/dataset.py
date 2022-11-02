@@ -20,6 +20,6 @@ class Dataset:
             for t in range(self.seq_len):
                 action = self.get_random_action()
                 observation, reward, terminated, truncated, info = self.game.env.step(action)
-                self.buf.save(observation, action)
+                self.buf.save(observation, action, reward)
         return self.buf, self.episodes*self.seq_len
 

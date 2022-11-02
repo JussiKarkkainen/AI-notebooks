@@ -6,12 +6,14 @@ class ReplayBuffer:
     def __init__(self, seq_len):
         self.buffer = []
         self.act_buffer = []
+        self.reward_buffer = []
         self.seq_len = seq_len
 
-    def save(self, observation, action):
+    def save(self, observation, action, reward):
         self.buffer.append(jnp.array(observation))
         self.act_buffer.append(jnp.array(action))
-    
+        self.reward_buffer.append(jnp.array(reward))
+
     def get_image(self):
         return self.preprocess(self.buffer[100])
 

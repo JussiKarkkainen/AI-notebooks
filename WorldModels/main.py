@@ -20,8 +20,9 @@ class WorldModel:
         #weights.save_model(self.vae_model_state, name="vae")
         vae_params = weights.load_model("vae")
         print("Starting LSTM training\n")
-        lstm_model_state = trainer.MTrainer(self.dataset, episodes, vae_params).train()
-        #weights.save_model(lstm_model_state, name="lstm")
+        mdn_rnn_params = trainer.MTrainer(self.dataset, episodes, vae_params).train()
+        #weights.save_model(lstm_model_state, name="mdn_rnn")
+        #controller_params = trainer.CTrainer(self.dataset, episodes, mdn_rnn_params).train()
         #self.test()
 
 
