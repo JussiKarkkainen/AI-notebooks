@@ -56,7 +56,7 @@ class ConvVAE(hk.Module):
         decoded = ConvVaeDecoder()(z)
         return z, mu, logsigma, decoded
 
-class MDNLSTMstate(NamedTuple):
+class MDNLSTMState(NamedTuple):
     hidden: jnp.ndarray
     cell: jnp.ndarray
     pi: jnp.ndarray
@@ -95,12 +95,17 @@ class MDN_LSTM(hk.RNNCore):
         return h, MDNLSTMState(hidden=h, cell=c, pi=pi, mu=mu, sigma=sigma) 
     
     def initial_state(self, batch_size):
-        state = MDNLSTMstate(hidden=jnp.zeros([self.hidden_units]),
+        state = MDNLSTMState(hidden=jnp.zeros([self.hidden_units]),
                           cell=jnp.zeros([self.hidden_units]),
                           pi=None, mu=None, sigma=None)
+        if batch_size is not None:
+            state = add_batch(state, batch_size)
         return state
 
-
+def add_batch(nest, batch_size: Optional[int]):
+    """Adds a batch dimension at axis 0 to the leaves of a nested structure."""
+    broadcast = lambda x: jnp.broadcast_to(x, (batch_size,) + x.shape)
+    return jax.tree_util.tree_map(broadcast, nest)
 
 def mixture_coef(n_gaussian, h):
     pi = hk.Linear(self.n_gaussian)(h)

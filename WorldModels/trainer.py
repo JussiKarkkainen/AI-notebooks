@@ -118,10 +118,10 @@ class MTrainer:
         core = models.MDN_LSTM()
         initial_state = core.initial_state(batch_size)
         inputs = (z, a)
-        mdn_state, h, lstm_state = hk.dynamic_unroll(core, inputs, initial_state, time_major=False)  
-        return mdn_state
+        h, mdnlstm_state = hk.dynamic_unroll(core, inputs, initial_state, time_major=False)  
+        return mdnlstm_state
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, z, a, y):
         # MDM-RNN predicts z_t+1 = y
         (pi, mu, sigma), (c, h) = self.m_model.apply(params, z, a)
@@ -131,7 +131,7 @@ class MTrainer:
         loss = -jnp.log(loss)
         return jnp.mean(loss)
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs, targets, actions):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
         loss, grads = grad_fn(state.params, inputs, actions, targets)
@@ -172,10 +172,11 @@ class MTrainer:
         train_inputs = jnp.expand_dims(self.train_inputs, axis=0)
         train_targets = jnp.expand_dims(self.train_targets, axis=0)
         latents, target_latents = self.get_latents(self.train_inputs, self.train_targets)
-        self.MDNRNNState = self.make_initial_state(self.rng, latents[0], actions[0])
+        latents, target_latents = jnp.squeeze(latents), jnp.squeeze(target_latents)
+        self.MDNRNNState = self.make_initial_state(self.rng, latents, actions)
         # Latents should be of shape (n, bs, seq_len, h, w, c)
         for z_t, z_t1, a in zip(latents, target_latents, actions):
-            loss = self.step(z_t, z_t1, a)
+            loss = self.step(jnp.squeeze(z_t), jnp.squeeze(z_t1), a)
             #wandb.log(["loss": loss])
 
         return self.MDNRNNState, self.lstm_model
