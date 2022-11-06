@@ -18,17 +18,36 @@ class ReplayBuffer:
         return self.preprocess(self.buffer[100])
 
     def seq_getter(self, batch_size, targets=False):
-        # TODO: return batch_size amount of batches
+        buf = self.buffer[1:] if targets else self.buffer[:len(self.buffer)-1]
         dataset = []
-        index = self.seq_len if targets else 0 
-        for i in range(len(self.buffer) // self.seq_len - 1):
-            batch = []
-            for j in range(self.seq_len):
-                batch.append(self.preprocess(self.buffer[index+j]))
-            index += self.seq_len
-            dataset.append(batch)
+        index = 0 
+        for k in range(len(buf) // (batch_size*self.seq_len)):
+            batches = []
+            for j in range(batch_size):
+                batch = []
+                for i in range(self.seq_len):
+                    batch.append(self.preprocess(buf[i+index]))
+                batches.append(batch)
+                index += self.seq_len
+            dataset.append(batches)
         dataset = jnp.array(dataset)
         return dataset
+    
+    def get_train_actions(self, batch_size):
+        buf = self.act_buffer[:len(self.act_buffer)-1]
+        dataset = []
+        index = 0
+        for k in range(len(buf) // (batch_size*self.seq_len)):
+            batches = []
+            for j in range(batch_size):
+                batch = []
+                for i in range(self.seq_len):
+                    batch.append(buf[i+index])
+                batches.append(batch)
+                index += self.seq_len
+            dataset.append(batches)
+        dataset = jnp.array(dataset)
+        return dataset 
 
     def get_train_inputs(self, batch_size, iterator=True):
         dataset = []
@@ -39,19 +58,8 @@ class ReplayBuffer:
             dataset.append(batch)
         dataset = jnp.array(dataset)
         return iter(dataset) if iterator else dataset
+   
     
-    def get_train_actions(self, batch_size):
-        dataset = []
-        index = 0
-        for i in range(len(self.act_buffer) // self.seq_len - 1):
-            batch = []
-            for j in range(self.seq_len):
-                batch.append(self.act_buffer[index+j])
-            index += self.seq_len
-            dataset.append(batch)
-        dataset = jnp.array(dataset)
-        return dataset
-
     def preprocess(self, image):
         image = jnp.array(image)
         image /= 255

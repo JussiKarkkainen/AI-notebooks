@@ -1,4 +1,5 @@
 import jax
+from jax.scipy.special import logsumexp
 import jax.numpy as jnp
 import haiku as hk
 import optax
@@ -6,6 +7,7 @@ import wandb
 from typing import NamedTuple
 from functools import partial
 import models
+import torch
 
 class VAETrainingState(NamedTuple):
     params: hk.Params
@@ -85,7 +87,7 @@ class MTrainer:
         self.dataset = dataset
         
         self.episodes = episodes
-        self.batch_size = 32
+        self.batch_size = 8
         self.train_inputs = dataset.seq_getter(self.batch_size)
         self.train_targets = dataset.seq_getter(self.batch_size, targets=True)
         self.train_actions = dataset.get_train_actions(self.batch_size)
@@ -118,18 +120,23 @@ class MTrainer:
         core = models.MDN_LSTM()
         initial_state = core.initial_state(batch_size)
         inputs = (z, a)
-        h, mdnlstm_state = hk.dynamic_unroll(core, inputs, initial_state, time_major=False)  
-        return mdnlstm_state
+        out, mdnlstm_state = hk.dynamic_unroll(core, inputs, initial_state, time_major=False)  
+        return out, mdnlstm_state
 
     #@partial(jax.jit, static_argnums=(0,))
     def _loss_fn(self, params, z, a, y):
         # MDM-RNN predicts z_t+1 = y
-        (pi, mu, sigma), (c, h) = self.m_model.apply(params, z, a)
-        dist = mu + sigma * jax.random.normal(jax.random.PRNGKey(42), mu.shape)
-        loss = jnp.exp(jnp.log(y))
-        loss = jnp.sum(loss * pi, axis=2)
-        loss = -jnp.log(loss)
-        return jnp.mean(loss)
+        out, state = self.m_model.apply(params, z, a)
+        (h, alpha, mu, logsigma) = out
+        loss = 0
+        for i in range(mu.shape[-1]):
+            mu = mu[:, :, i].reshape(mu.shape[0], mu.shape[1], 1)
+            logsigma = logsigma[:, :, i].reshape(logsigma.shape[0], logsigma.shape[1], 1)
+            alpha = alpha[:, :, i].reshape(alpha.shape[0], alpha.shape[1], 1)
+            loss += alpha - (-0.5 * ((y - mu) / jnp.exp(logsigma)) ** 2 - jnp.exp(logsigma) - \
+                        jnp.log(jnp.sqrt(2. * jnp.pi)))
+        loss = logsumexp(loss, axis=2)
+        return -jnp.mean(loss)
 
     #@partial(jax.jit, static_argnums=(0,))
     def _update_weights(self, state, inputs, targets, actions):
@@ -137,7 +144,7 @@ class MTrainer:
         loss, grads = grad_fn(state.params, inputs, actions, targets)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
-        return MDNRNNTrainingState(params=params, opt_state=opt_state)
+        return loss, MDNRNNTrainingState(params=params, opt_state=opt_state)
 
     def make_initial_state(self, rng, z, action):
         init_params = self.m_model.init(rng, z, action)
@@ -147,39 +154,45 @@ class MTrainer:
     def get_latents(self, obs, targets):
         ''' 
         Turn observations to latent vectors so they can be used by M-model
-        obs.shape is (bs, seq_len, h, w, c) loop over batches and sequences to produce latents
+        obs.shape is (n, bs, seq_len, h, w, c) loop over batches and sequences to produce latents
         '''
-        # TODO: check if correct
+        # TODO: check if correct, also very slow
         latents, target_latents = [], []
-        for i in range(obs.shape[0]):
-            o_batch, t_batch = [], []
-            for j in range(obs.shape[1]):
-                o_batch.append(self.v_model.apply(self.v_model_params, jnp.expand_dims(obs[i][j], axis=0)))
-                t_batch.append(self.v_model.apply(self.v_model_params, jnp.expand_dims(targets[i][j], axis=0)))
-            latents.append(jnp.array(o_batch))
-            target_latents.append(jnp.array(t_batch))
+        for k in range(obs.shape[0]):
+            o_n, t_n = [], []
+            for i in range(obs.shape[1]):
+                o_batch, t_batch = [], []
+                for j in range(obs.shape[2]):
+                    v_input = jnp.expand_dims(obs[k, i, j, :, :, :], axis=0)
+                    t_input = jnp.expand_dims(targets[k, i, j, :, :, :], axis=0)
+                    out = self.v_model.apply(self.v_model_params, v_input).shape
+                    o_batch.append(self.v_model.apply(self.v_model_params, v_input))
+                    t_batch.append(self.v_model.apply(self.v_model_params, t_input))
+                o_n.append(jnp.array(o_batch))
+                t_n.append(jnp.array(t_batch))
+            latents.append(jnp.array(o_n))
+            target_latents.append(jnp.array(t_n))
         latents = jnp.array(latents)
         target_latents = jnp.array(target_latents)
         return latents, target_latents
 
     def step(self, z_t, z_t1, a):
         # z_t should be of shape (batch_size, seq_len, H, W, C) 
-        self.MDNRNNState, loss = self.update_weights(self.MDNRNNState, z_t, z_t1, a)
+        loss, self.MDNRNNState = self.update_weights(self.MDNRNNState, z_t, z_t1, a)
         return loss
 
     def train(self):
         actions = self.train_actions
-        train_inputs = jnp.expand_dims(self.train_inputs, axis=0)
-        train_targets = jnp.expand_dims(self.train_targets, axis=0)
         latents, target_latents = self.get_latents(self.train_inputs, self.train_targets)
         latents, target_latents = jnp.squeeze(latents), jnp.squeeze(target_latents)
-        self.MDNRNNState = self.make_initial_state(self.rng, latents, actions)
+        self.MDNRNNState = self.make_initial_state(self.rng, latents[0], actions[0])
         # Latents should be of shape (n, bs, seq_len, h, w, c)
         for z_t, z_t1, a in zip(latents, target_latents, actions):
-            loss = self.step(jnp.squeeze(z_t), jnp.squeeze(z_t1), a)
-            #wandb.log(["loss": loss])
+            loss = self.step(z_t, z_t1, a)
+            print(loss)
+        #wandb.log(["loss": loss])
 
-        return self.MDNRNNState, self.lstm_model
+        return self.MDNRNNState, self.m_model
 
 class CTrainer:
     def __init__(self, dataset, episodes, mparams):

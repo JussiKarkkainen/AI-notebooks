@@ -7,8 +7,8 @@ from replay_buffer import ReplayBuffer
 class Dataset:
     def __init__(self):
         self.game = Game()
-        self.episodes = 16 
-        self.seq_len = 10 
+        self.episodes = 33 
+        self.seq_len = 17
         self.buf = ReplayBuffer(self.seq_len)
 
     def get_random_action(self):

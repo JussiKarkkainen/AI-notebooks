@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import jax
+from jax.scipy.special import logsumexp
 import haiku as hk
 import optax
 from typing import NamedTuple, Optional
@@ -59,10 +60,6 @@ class ConvVAE(hk.Module):
 class MDNLSTMState(NamedTuple):
     hidden: jnp.ndarray
     cell: jnp.ndarray
-    pi: jnp.ndarray
-    mu: jnp.ndarray
-    sigma: jnp.ndarray
-
 
 class MDN_LSTM(hk.RNNCore):
     '''
@@ -87,17 +84,14 @@ class MDN_LSTM(hk.RNNCore):
         c = f * prev_state.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
         h = jax.nn.sigmoid(o) * jnp.tanh(c)
         # MDN
-        pi = hk.Linear(self.n_gaussian)(h) 
-        mu = hk.Linear(self.n_gaussian)(h) 
-        logsigma = hk.Linear(self.n_gaussian)(h) 
-        sigma = jnp.exp(logsigma)
-        pi = jax.nn.softmax(pi)
-        return h, MDNLSTMState(hidden=h, cell=c, pi=pi, mu=mu, sigma=sigma) 
+        outs = hk.Linear(3*self.n_gaussian)(h)
+        alpha, mu, logsigma = jnp.split(outs, indices_or_sections=3, axis=-1)
+        logsigma -= logsumexp(logsigma, axis=-1, keepdims=True)
+        return (h, alpha, mu, logsigma), MDNLSTMState(hidden=h, cell=c)
     
     def initial_state(self, batch_size):
         state = MDNLSTMState(hidden=jnp.zeros([self.hidden_units]),
-                          cell=jnp.zeros([self.hidden_units]),
-                          pi=None, mu=None, sigma=None)
+                          cell=jnp.zeros([self.hidden_units]))
         if batch_size is not None:
             state = add_batch(state, batch_size)
         return state
@@ -108,12 +102,12 @@ def add_batch(nest, batch_size: Optional[int]):
     return jax.tree_util.tree_map(broadcast, nest)
 
 def mixture_coef(n_gaussian, h):
-    pi = hk.Linear(self.n_gaussian)(h)
+    alpha = hk.Linear(self.n_gaussian)(h)
     mu = hk.Linear(self.n_gaussian)(h) 
     logsigma = hk.Linear(n_gaussian)(h)
     sigma = jnp.exp(logsigma)
-    pi = jax.nn.softmax(pi)
-    return pi, mu, sigma
+    alpha = jax.nn.softmax(pi)
+    return alpha, mu, sigma
 
 class MDM_RNN(hk.Module):
     def __init__(self):
