@@ -190,7 +190,7 @@ class MTrainer:
         for z_t, z_t1, a in zip(latents, target_latents, actions):
             loss = self.step(z_t, z_t1, a)
             print(loss)
-        #wandb.log(["loss": loss])
+            #wandb.log(["loss": loss])
 
         return self.MDNRNNState, self.m_model
 

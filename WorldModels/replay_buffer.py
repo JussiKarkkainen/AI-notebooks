@@ -59,7 +59,6 @@ class ReplayBuffer:
         dataset = jnp.array(dataset)
         return iter(dataset) if iterator else dataset
    
-    
     def preprocess(self, image):
         image = jnp.array(image)
         image /= 255

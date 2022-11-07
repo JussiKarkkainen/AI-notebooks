@@ -31,7 +31,8 @@ class WorldModel:
         print("________________\n\n")
         model_params = weights.load_model("vae")
         Test(model_params, self.dataset).test_vae()
-
+        reward = Test(v_params, v_model, m_params, m_model, c_params, c_model).unroll()
+        print(f"Reward on CarRacing-v2 was {reward}")
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
