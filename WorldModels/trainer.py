@@ -133,7 +133,7 @@ class MTrainer:
             mu = mu[:, :, i].reshape(mu.shape[0], mu.shape[1], 1)
             logsigma = logsigma[:, :, i].reshape(logsigma.shape[0], logsigma.shape[1], 1)
             alpha = alpha[:, :, i].reshape(alpha.shape[0], alpha.shape[1], 1)
-            loss += alpha - (-0.5 * ((y - mu) / jnp.exp(logsigma)) ** 2 - jnp.exp(logsigma) - \
+            loss += alpha + (-0.5 * ((y - mu) / jnp.exp(logsigma)) ** 2 - jnp.exp(logsigma) - \
                         jnp.log(jnp.sqrt(2. * jnp.pi)))
         loss = logsumexp(loss, axis=2)
         return -jnp.mean(loss)
