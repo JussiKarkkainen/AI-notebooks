@@ -19,7 +19,6 @@ class Test:
         self.m_params = m_params
         self.c_net = hk.without_apply_rng(hk.transform(self.c_forward))
         self.c_params = c_params
-        self.game = Game(render_mode="human")
 
     def v_forward(self, x):
         vae = models.ConvVAE()
@@ -27,6 +26,7 @@ class Test:
         return z, decoded
     
     def rollout(self):
+        self.game = Game(render_mode="human")
         terminated = 0
         obs, info = jnp.expand_dims(self.preprocess(self.game.reset()), axis=0)
         h = self.m_net.initial_state()

@@ -121,9 +121,6 @@ class MDM_RNN(hk.Module):
         h, (c, o) = LSTM()(z, a, prev_state)
         pi, mu, sigma = self.mixture_coef(h)
         return (pi, mu, sigma), (h, c)
-    
-    
-
 
 class Controller(hk.Module):
     fc_size = 3
@@ -132,5 +129,8 @@ class Controller(hk.Module):
         # Linear layer that maps the concatenated input vector [z, h]
         # into an action vector
         z_h = jnp.concatenate(z, h, axis=1)
-        return hk.Linear(fc_size)(z_h)
+        steer = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][0]) 
+        gas = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][1])
+        brake = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][2])
+        return steer, gas, brake
 

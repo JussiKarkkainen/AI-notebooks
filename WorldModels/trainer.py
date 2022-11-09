@@ -90,8 +90,6 @@ class MTrainer:
         self.train_actions = mdn_lstm_actions
         self.rng = jax.random.PRNGKey(seed=42)
         self.m_model = hk.without_apply_rng(hk.transform(self._unroll_rnn))
-        self.loss_fn = self._loss_fn
-        self.update_weights = self._update_weights
         self.optimizer = optax.adam(1e-4)
         self.num_epochs = (episodes // self.batch_size) - 1
         self.MDNRNNState = MDNRNNTrainingState(params=None, opt_state=None)
@@ -114,7 +112,7 @@ class MTrainer:
         return out, mdnlstm_state
 
     #@partial(jax.jit, static_argnums=(0,))
-    def _loss_fn(self, params, z, a, y):
+    def loss_fn(self, params, z, a, y):
         # MDM-RNN predicts z_t+1 = y
         out, state = self.m_model.apply(params, z, a)
         (h, alpha, mu, logsigma) = out
@@ -129,7 +127,7 @@ class MTrainer:
         return -jnp.mean(loss)
 
     #@partial(jax.jit, static_argnums=(0,))
-    def _update_weights(self, state, inputs, targets, actions):
+    def update_weights(self, state, inputs, targets, actions):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
         loss, grads = grad_fn(state.params, inputs, actions, targets)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
@@ -156,8 +154,36 @@ class MTrainer:
 
         return self.MDNRNNState
 
+class CTrainingState(NamedTuple):
+    params: hk.Params
+    opt_state: optax.OptState
+
 class CTrainer:
-    def __init__(self, dataset, episodes, mparams):
+    '''
+    Original paper used CMA-ES to train the controller, this implementations uses 
+    backpropagation.
+    '''
+    def __init__(self, dataset, episodes, mparams, m_model, v_params, v_model):
         self.dataset = dataset
         self.episodes = epsiodes
         self.mparams = mparams
+        self.m_model = m_model
+        self.vparams = vparams
+        self.v_model = v_model
+        self.c_model = hk.without_apply_rng(hk.transform(self._forward))
+        self.c_state = CtrainingState(params=None, opt_state=None)        
+
+    def _forward(self, z, h):
+        model = models.Controller()
+        steer, gas, brake = model(z, h)
+        return steer, gas, brake
+
+    def loss_fn(self, params, z, h): 
+        pass
+
+    def update_weights(self, state, inputs, targets):
+        pass
+
+    def train(self):
+        pass
+
