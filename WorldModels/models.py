@@ -129,8 +129,5 @@ class Controller(hk.Module):
         # Linear layer that maps the concatenated input vector [z, h]
         # into an action vector
         z_h = jnp.concatenate(z, h, axis=1)
-        steer = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][0]) 
-        gas = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][1])
-        brake = jnp.tanh(hk.Linear(fc_size)(z_h)[-1][2])
-        return steer, gas, brake
-
+        out = jnp.tanh(hk.Linear(fc_size)(z_h))
+        return out

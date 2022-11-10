@@ -34,6 +34,9 @@ class WorldModel:
                                  name="mdnrnn")
         return path
 
+    def create_c_dataset(self, path):
+        pass
+
     def train_vae(self, path, force=False):
         print("Training VAE")
         vae_dataset = self.dataset.load(path) 
@@ -61,7 +64,9 @@ class WorldModel:
         weights.save_model(controller_state, name="controller")
 
     def test(self, path=None):
-        model_params = weights.load_model("vae")
+        v_params = weights.load_model("vae")
+        m_params = weights.load_model("mdnrnn")
+        c_params = weights.load_model("controller")
         Test(model_params, self.dataset).test_vae()
         reward = Test(v_params, v_model, m_params, m_model, c_params, c_model).unroll()
 

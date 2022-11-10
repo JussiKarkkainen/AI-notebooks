@@ -16,7 +16,7 @@ class ReplayBuffer:
 
     def get_image(self):
         return self.preprocess(self.buffer[100])
-
+    
     def seq_getter(self, batch_size, targets=False):
         buf = self.buffer[1:] if targets else self.buffer[:len(self.buffer)-1]
         dataset = []
@@ -34,6 +34,23 @@ class ReplayBuffer:
         print(f"Shape of MDN_LSTM (targets: {targets}) dataset is: {dataset.shape}")
         return dataset
     
+    def get_rewards(self, batch_size):
+        buf = self.reward_buffer
+        dataset = []
+        index = 0
+        for k in range(len(buf) // (batch_size*self.seq_len)):
+            batches = []
+            for j in range(batch_size):
+                batch = []
+                for i in range(self.seq_len):
+                    batch.append(buf[i+index])
+                batches.append(batch)
+                index += self.seq_len
+            dataset.append(batch)
+        dataset = jnp.array(dataset)
+        print(f"Shape of actions dataset is: {dataset.shape}")
+        return dataset
+
     def get_train_actions(self, batch_size):
         buf = self.act_buffer[:len(self.act_buffer)-1]
         dataset = []

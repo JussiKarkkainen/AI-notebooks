@@ -8,6 +8,7 @@ from typing import NamedTuple
 from functools import partial
 import models
 import torch
+from tqdm import tqdm
 
 class VAETrainingState(NamedTuple):
     params: hk.Params
@@ -69,7 +70,7 @@ class VTrainer:
     def train(self):
         dummy_inputs = self.train_inputs[0]
         self.VAEState = self.make_initial_state(self.rng, dummy_inputs) 
-        for data in self.train_inputs:
+        for data in tqdm(self.train_inputs):
             loss, aux = self.step(data)
             self.encode_buffer.append(aux)
             print(loss)
@@ -147,7 +148,7 @@ class MTrainer:
     def train(self):
         self.MDNRNNState = self.make_initial_state(self.rng, self.latents[0], self.train_actions[0])
         # Latents should be of shape (n, bs, seq_len, h, w, c)
-        for z_t, z_t1, a in zip(self.latents, self.target_latents, self.train_actions):
+        for z_t, z_t1, a in tqdm(zip(self.latents, self.target_latents, self.train_actions)):
             loss = self.step(z_t, z_t1, a)
             print(loss)
             #wandb.log(["loss": loss])
@@ -172,17 +173,30 @@ class CTrainer:
         self.v_model = v_model
         self.c_model = hk.without_apply_rng(hk.transform(self._forward))
         self.c_state = CtrainingState(params=None, opt_state=None)        
+        self.rng = jax.random.PRNGKey(seed=42)
+        self.optimizer = optax.adam(1e-4)
 
     def _forward(self, z, h):
         model = models.Controller()
-        steer, gas, brake = model(z, h)
-        return steer, gas, brake
+        out = model(z, h)
+        return out 
 
-    def loss_fn(self, params, z, h): 
-        pass
+    def loss_fn(self, params, z, h, targets, reward): 
+        logits = self.c_model.apply(params, z, h)
+        loss = -jnp.mean(jnp.sum(labels * jnp.log(logits), axis=-1) * rewards)
+        return loss
 
-    def update_weights(self, state, inputs, targets):
-        pass
+    def update_weights(self, state, z, h, targets, rewards):
+        grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
+        loss, grads = grad_fn(state.params, inputs, targets)
+        updates, opt_state = self.optimizer.update(grads, state.opt_state)
+        params = optax.apply_updates(state.params, updates)
+        return loss, CTrainingState(params=params, opt_state=opt_state)
+
+    def make_initial_state(self, rng, z, h):
+        params = self.c_model.init(rng, z, h)
+        opt_state = self.optimizer.init(params) 
+        return CTrainingState(params=params, opt_state=opt_state)
 
     def train(self):
         pass
