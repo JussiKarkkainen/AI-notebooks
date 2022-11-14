@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
 from game import Game
+from utils import preprocess
 
 class Test:
     def __init__(self, v_params, v_model, m_params, m_model, c_params, c_model, dataset=None):
@@ -28,24 +29,18 @@ class Test:
     def rollout(self):
         self.game = Game(render_mode="human")
         terminated = 0
-        obs, info = jnp.expand_dims(self.preprocess(self.game.reset()), axis=0)
+        obs, info = jnp.expand_dims(preprocess(self.game.reset()), axis=0)
         h = self.m_net.initial_state()
         cumulative_reward = 0
         while not terminated:
             z, decoded = self.v_net.apply(self.v_params.params_, obs)
             a = self.c_net.apply(self.c_params.params, (z, h))
             obs, reward, terminated, truncated, info = self.game.step(a)
-            obs = jnp.expand_dims(self.preprocess(obs), axis=0)
+            obs = jnp.expand_dims(preprocess(obs), axis=0)
             cumulative_reward += reward
             h = self.m_net.apply(self.m_params.params, (a, z, h))
         self.game.close()
         return cumulative_reward
-
-    def preprocess(self, obs):
-        image = jnp.array(image)
-        image /= 255
-        image = jnp.array(skimage.transform.resize(image, (64, 64)))
-        return image
 
     def test_vae(self):
         x = np.expand_dims(self.dataset.get_image(), axis=0)

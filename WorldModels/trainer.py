@@ -9,6 +9,7 @@ from functools import partial
 import models
 import torch
 from tqdm import tqdm
+from utils import preprocess
 
 class VAETrainingState(NamedTuple):
     params: hk.Params
@@ -164,12 +165,11 @@ class CTrainer:
     Original paper used CMA-ES to train the controller, this implementations uses 
     backpropagation.
     '''
-    def __init__(self, dataset, episodes, mparams, m_model, v_params, v_model):
-        self.dataset = dataset
+    def __init__(self, episodes, mparams, m_model, v_params, v_model):
         self.episodes = epsiodes
-        self.mparams = mparams
+        self.m_params = mparams
         self.m_model = m_model
-        self.vparams = vparams
+        self.v_params = vparams
         self.v_model = v_model
         self.c_model = hk.without_apply_rng(hk.transform(self._forward))
         self.c_state = CtrainingState(params=None, opt_state=None)        
@@ -199,5 +199,18 @@ class CTrainer:
         return CTrainingState(params=params, opt_state=opt_state)
 
     def train(self):
-        pass
+        self.game = Game(render_mode="human")
+        terminated = 0
+        obs, info = jnp.expand_dims(preprocess(self.game.reset()), axis=0)
+        h = self.m_net.initial_state()
+        cumulative_reward = 0
+        while not terminated:
+            z, decoded = self.v_net.apply(self.v_params.params_, obs)
+            a = self.c_net.apply(self.c_params.params, (z, h))
+            obs, reward, terminated, truncated, info = self.game.step(a)
+            obs = jnp.expand_dims(preprocess(obs), axis=0)
+            cumulative_reward += reward
+            h = self.m_net.apply(self.m_params.params, (a, z, h))
+        self.game.close()
+        return cumulative_reward
 

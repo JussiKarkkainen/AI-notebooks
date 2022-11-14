@@ -1,6 +1,6 @@
 import jax; jax.config.update('jax_platform_name', 'cpu')
 import jax.numpy as jnp
-import skimage
+from utils import preprocess
 
 class ReplayBuffer:
     def __init__(self, seq_len):
@@ -15,7 +15,7 @@ class ReplayBuffer:
         self.reward_buffer.append(jnp.array(reward))
 
     def get_image(self):
-        return self.preprocess(self.buffer[100])
+        return preprocess(self.buffer[100])
     
     def seq_getter(self, batch_size, targets=False):
         buf = self.buffer[1:] if targets else self.buffer[:len(self.buffer)-1]
@@ -26,7 +26,7 @@ class ReplayBuffer:
             for j in range(batch_size):
                 batch = []
                 for i in range(self.seq_len):
-                    batch.append(self.preprocess(buf[i+index]))
+                    batch.append(preprocess(buf[i+index]))
                 batches.append(batch)
                 index += self.seq_len
             dataset.append(batches)
@@ -100,15 +100,10 @@ class ReplayBuffer:
         for i in range(0, (len(self.buffer) // batch_size)): 
             batch = []
             for j in range(batch_size):
-                batch.append(self.preprocess(self.buffer[j+index]))
+                batch.append(preprocess(self.buffer[j+index]))
             index += batch_size
             dataset.append(batch)
         dataset = jnp.array(dataset)
         print(f"Shape of VAE dataset is: {dataset.shape}")
         return dataset 
    
-    def preprocess(self, image):
-        image = jnp.array(image)
-        image /= 255
-        image = jnp.array(skimage.transform.resize(image, (64, 64)))
-        return image

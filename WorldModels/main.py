@@ -27,15 +27,10 @@ class WorldModel:
         mdn_lstm_actions = self.buf.get_train_actions(self.batch_size)
         mdn_latents, mdn_latent_targets = self.buf.get_latents(mdn_lstm_inputs, mdn_lstm_targets, 
                                                           self.vae_forward, vae_params) 
-        print("Done, Creating dataset for Controller")
-        controller_dataset = None   # TODO 
         print("Done, Saving dataset")
         path = self.dataset.save((mdn_lstm_actions, mdn_latents, mdn_latent_targets), 
                                  name="mdnrnn")
         return path
-
-    def create_c_dataset(self, path):
-        pass
 
     def train_vae(self, path, force=False):
         print("Training VAE")
@@ -60,7 +55,10 @@ class WorldModel:
 
     def train_controller(self, path):
         print("Training controller")
-        controller_state = trainer.CTrainer(self.dataset, episodes, mdn_rnn_state).train()
+        vae_params = weights.load_model("vae")
+        mdnrnn_params = weights.load_model("mdn_rnn")
+        controller_state = trainer.CTrainer(episodes, mdnrnn_params, self.mdnrnn_forward,
+                                            vae_params, self.vae_forward).train()
         weights.save_model(controller_state, name="controller")
 
     def test(self, path=None):
