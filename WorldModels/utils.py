@@ -1,4 +1,5 @@
 import skimage
+import jax.numpy as jnp
 
 def preprocess(image):
     image = jnp.array(image)

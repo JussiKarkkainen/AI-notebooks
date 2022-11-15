@@ -125,9 +125,10 @@ class MDM_RNN(hk.Module):
 class Controller(hk.Module):
     fc_size = 3
 
-    def __call__(self, z, h):
+    def __call__(self, inputs):
         # Linear layer that maps the concatenated input vector [z, h]
         # into an action vector
-        z_h = jnp.concatenate(z, h, axis=1)
-        out = jnp.tanh(hk.Linear(fc_size)(z_h))
+        z, h = inputs[0], inputs[1]
+        z_h = jnp.concatenate((z, h), axis=1)
+        out = jnp.tanh(hk.Linear(self.fc_size)(z_h))
         return out

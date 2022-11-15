@@ -1,3 +1,4 @@
+import os
 import jax
 from jax.scipy.special import logsumexp
 import jax.numpy as jnp
@@ -10,6 +11,7 @@ import models
 import torch
 from tqdm import tqdm
 from utils import preprocess
+from game import Game
 
 class VAETrainingState(NamedTuple):
     params: hk.Params
@@ -165,20 +167,20 @@ class CTrainer:
     Original paper used CMA-ES to train the controller, this implementations uses 
     backpropagation.
     '''
-    def __init__(self, episodes, mparams, m_model, v_params, v_model):
-        self.episodes = epsiodes
-        self.m_params = mparams
+    def __init__(self, episodes, m_params, m_model, v_params, v_model):
+        self.episodes = episodes
+        self.m_params = m_params
         self.m_model = m_model
-        self.v_params = vparams
+        self.v_params = v_params
         self.v_model = v_model
         self.c_model = hk.without_apply_rng(hk.transform(self._forward))
-        self.c_state = CtrainingState(params=None, opt_state=None)        
+        self.c_state = CTrainingState(params=None, opt_state=None)        
         self.rng = jax.random.PRNGKey(seed=42)
         self.optimizer = optax.adam(1e-4)
 
-    def _forward(self, z, h):
+    def _forward(self, inputs):
         model = models.Controller()
-        out = model(z, h)
+        out = model(inputs)
         return out 
 
     def loss_fn(self, params, z, h, targets, reward): 
@@ -193,24 +195,33 @@ class CTrainer:
         params = optax.apply_updates(state.params, updates)
         return loss, CTrainingState(params=params, opt_state=opt_state)
 
-    def make_initial_state(self, rng, z, h):
-        params = self.c_model.init(rng, z, h)
+    def make_initial_state(self, z, h):
+        params = self.c_model.init(self.rng, (z, h))
         opt_state = self.optimizer.init(params) 
         return CTrainingState(params=params, opt_state=opt_state)
 
     def train(self):
-        self.game = Game(render_mode="human")
+        c_state = self.make_initial_state(jnp.zeros([1, 32]), jnp.zeros([1, 256]))
+
+        render = os.environ.get("RENDER")
+        game = Game(render_mode="human") if render else Game()
         terminated = 0
-        obs, info = jnp.expand_dims(preprocess(self.game.reset()), axis=0)
-        h = self.m_net.initial_state()
+        obs, info = game.reset()
+        obs = jnp.expand_dims(preprocess(obs), axis=0)
+        h = jnp.zeros([1, 256])
         cumulative_reward = 0
         while not terminated:
-            z, decoded = self.v_net.apply(self.v_params.params_, obs)
-            a = self.c_net.apply(self.c_params.params, (z, h))
-            obs, reward, terminated, truncated, info = self.game.step(a)
+            z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
+            h = jnp.reshape(h, (1, 256))
+            a = self.c_model.apply(c_state.params, (z, h))
+            a = jnp.squeeze(a)
+            a_f = [float(a[i]) for i in range(len(a))]
+            obs, reward, terminated, truncated, info = game.step(a_f)
             obs = jnp.expand_dims(preprocess(obs), axis=0)
             cumulative_reward += reward
-            h = self.m_net.apply(self.m_params.params, (a, z, h))
+            a = jnp.reshape(a, (1, 1, 3))
+            z = jnp.reshape(z, (1, 1, 32))
+            (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
         self.game.close()
         return cumulative_reward
 

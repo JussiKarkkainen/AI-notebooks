@@ -10,6 +10,7 @@ class WorldModel:
         self.vae_batch_size = vae_batch_size
         self.batch_size = batch_size
         self.dataset = Dataset()
+        print("Creating dataset")
         self.buf, self.episodes = self.dataset.rollout()
 
     def create_vae_dataset(self):
@@ -53,11 +54,11 @@ class WorldModel:
             mdn_rnn_state = mdnrnn_trainer.train()
             weights.save_model(mdn_rnn_state, name="mdn_rnn")
 
-    def train_controller(self, path):
-        print("Training controller")
+    def train_controller(self):
+        print("Training Controller")
         vae_params = weights.load_model("vae")
         mdnrnn_params = weights.load_model("mdn_rnn")
-        controller_state = trainer.CTrainer(episodes, mdnrnn_params, self.mdnrnn_forward,
+        controller_state = trainer.CTrainer(self.episodes, mdnrnn_params, self.mdnrnn_forward,
                                             vae_params, self.vae_forward).train()
         weights.save_model(controller_state, name="controller")
 
@@ -65,8 +66,7 @@ class WorldModel:
         v_params = weights.load_model("vae")
         m_params = weights.load_model("mdnrnn")
         c_params = weights.load_model("controller")
-        Test(model_params, self.dataset).test_vae()
-        reward = Test(v_params, v_model, m_params, m_model, c_params, c_model).unroll()
+        Test(v_params, self.vae_forward, m_params, self.mdnrnn_forward, c_params, self.c_forward).unroll()
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
@@ -75,12 +75,15 @@ if __name__ == "__main__":
         main = WorldModel()
         vae_path = "data/vae_dataset.npz"
         mdnrnn_path = "data/mdnrnn.npz"
+        controller_path = "data/controller.npz"
         if not os.path.exists(vae_path):
             vae_path = main.create_vae_dataset()
         main.train_vae(vae_path)
         if not os.path.exists(mdnrnn_path):
             mdnrnn_path = main.create_mdnrnn_dataset(vae_path)
         main.train_mdnrnn(vae_path, mdnrnn_path)
+        main.train_controller()
+
     elif sys.argv[1] == "--test":
         WorldModel().test()
 
