@@ -129,6 +129,6 @@ class Controller(hk.Module):
         # Linear layer that maps the concatenated input vector [z, h]
         # into an action vector
         z, h = inputs[0], inputs[1]
-        z_h = jnp.concatenate((z, h), axis=1)
+        z_h = jnp.concatenate((z, h), axis=-1)
         out = jnp.tanh(hk.Linear(self.fc_size)(z_h))
         return out

@@ -15,6 +15,9 @@ class Game:
         observation, info = self.env.reset()
         return observation, info
     
+    def action_space(self):
+        print(self.env.action_space)
+    
     def close(self):
         self.game.env.close()
 

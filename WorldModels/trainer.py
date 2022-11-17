@@ -167,7 +167,7 @@ class CTrainer:
     Original paper used CMA-ES to train the controller, this implementations uses 
     backpropagation.
     '''
-    def __init__(self, episodes, m_params, m_model, v_params, v_model):
+    def __init__(self, episodes, m_params, m_model, v_params, v_model, num_epochs=10):
         self.episodes = episodes
         self.m_params = m_params
         self.m_model = m_model
@@ -177,6 +177,7 @@ class CTrainer:
         self.c_state = CTrainingState(params=None, opt_state=None)        
         self.rng = jax.random.PRNGKey(seed=42)
         self.optimizer = optax.adam(1e-4)
+        self.num_epochs = num_epochs
 
     def _forward(self, inputs):
         model = models.Controller()
@@ -184,13 +185,13 @@ class CTrainer:
         return out 
 
     def loss_fn(self, params, z, h, targets, reward): 
-        logits = self.c_model.apply(params, z, h)
+        logits = self.c_model.apply(params, (z, h))
         loss = -jnp.mean(jnp.sum(labels * jnp.log(logits), axis=-1) * rewards)
         return loss
 
     def update_weights(self, state, z, h, targets, rewards):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
-        loss, grads = grad_fn(state.params, inputs, targets)
+        loss, grads = grad_fn(state.params, z, h, targets, rewards)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
         return loss, CTrainingState(params=params, opt_state=opt_state)
@@ -205,23 +206,35 @@ class CTrainer:
 
         render = os.environ.get("RENDER")
         game = Game(render_mode="human") if render else Game()
+        game.action_space()
         terminated = 0
         obs, info = game.reset()
         obs = jnp.expand_dims(preprocess(obs), axis=0)
         h = jnp.zeros([1, 256])
         cumulative_reward = 0
-        while not terminated:
-            z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
-            h = jnp.reshape(h, (1, 256))
-            a = self.c_model.apply(c_state.params, (z, h))
-            a = jnp.squeeze(a)
-            a_f = [float(a[i]) for i in range(len(a))]
-            obs, reward, terminated, truncated, info = game.step(a_f)
-            obs = jnp.expand_dims(preprocess(obs), axis=0)
-            cumulative_reward += reward
-            a = jnp.reshape(a, (1, 1, 3))
-            z = jnp.reshape(z, (1, 1, 32))
-            (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
+        # TODO: Is there a better way to do this?
+        for i in range(self.num_epochs):
+            acts, rs, zs, hs = [], [], [], []
+            for j in range(5):
+                z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
+                zs.append(z)
+                h = jnp.reshape(h, (1, 256))
+                hs.append(h)
+                a = self.c_model.apply(c_state.params, (z, h))
+                a = jnp.squeeze(a)
+                acts.append(a)
+                a_f = [float(a[i]) for i in range(len(a))]
+                obs, reward, terminated, truncated, info = game.step(a_f)
+                rs.append(reward)
+                obs = jnp.expand_dims(preprocess(obs), axis=0)
+                cumulative_reward += reward
+                a = jnp.reshape(a, (1, 1, 3))
+                z = jnp.reshape(z, (1, 1, 32))
+                (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
+            acts, rs, zs, hs = jnp.array(acts), jnp.array(rs), jnp.array(zs), jnp.array(hs)
+            print(acts.shape, rs.shape, zs.shape, hs.shape)
+            loss, c_state = self.update_weights(c_state, zs, hs, acts, rs)
+            print("One episode completed")
         self.game.close()
         return cumulative_reward
 
