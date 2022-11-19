@@ -19,7 +19,7 @@ class Game:
         print(self.env.action_space)
     
     def close(self):
-        self.game.env.close()
+        self.env.close()
 
     def render(self):
         self.env.render()

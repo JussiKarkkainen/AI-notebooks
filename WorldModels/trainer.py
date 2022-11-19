@@ -195,13 +195,14 @@ class CTrainer:
 
     def loss_fn(self, params, z, h, targets, reward): 
         mean, var, actions, value = self.c_model.apply(params, (z, h))
-        value_loss = optax.l2_loss(value, target_value) 
-        adv = value_target - value
+        value = value.reshape(reward.shape)
+        value_loss = optax.l2_loss(value, reward) 
+        adv = (reward - value).reshape(reward.shape[0], 1, 1)
         log_prob = adv * utils.logprob(mean, var, actions)
-        policy_loss jnp.mean(-log_prob)
+        policy_loss = jnp.mean(-log_prob)
         entropy = -(jnp.log(2*math.pi*var) + 1)/2
         entropy_loss = self.entropy_beta * jnp.mean(entropy)
-        loss = value_loss + policy_loss + entropy_loss
+        loss = jnp.mean(value_loss + policy_loss + entropy_loss)
         return loss
 
     def update_weights(self, state, z, h, targets, rewards):
@@ -218,7 +219,6 @@ class CTrainer:
 
     def train(self):
         c_state = self.make_initial_state(jnp.zeros([1, 32]), jnp.zeros([1, 256]))
-
         render = os.environ.get("RENDER")
         game = Game(render_mode="human") if render else Game()
         terminated = 0
@@ -229,6 +229,7 @@ class CTrainer:
         # TODO: Is there a better way to do this?
         for i in range(self.num_epochs):
             acts, rs, zs, hs = [], [], [], []
+            epoch_reward = 0
             for j in range(5):
                 z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
                 zs.append(z)
@@ -242,14 +243,12 @@ class CTrainer:
                 rs.append(reward)
                 obs = jnp.expand_dims(utils.preprocess(obs), axis=0)
                 cumulative_reward += reward
+                epoch_reward += reward
                 a = jnp.reshape(a, (1, 1, 3))
                 z = jnp.reshape(z, (1, 1, 32))
                 (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
             acts, rs, zs, hs = jnp.array(acts), jnp.array(rs), jnp.array(zs), jnp.array(hs)
             loss, c_state = self.update_weights(c_state, zs, hs, acts, rs)
-            print("One episode completed")
-        self.game.close()
-        return cumulative_reward
-
-
-
+            print(f"Loss on epoch: {i} was: {loss}, total reward was: {epoch_reward}")
+        game.close()
+        return c_state 
