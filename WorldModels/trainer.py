@@ -181,11 +181,13 @@ class CTrainer:
 
     def _forward(self, inputs):
         model = models.Controller()
-        out = model(inputs)
-        return out 
+        mean, var, value = model(inputs)
+        sigma = jnp.sqrt(var)
+        actions = mean + sigma * jax.random.normal(self.rng, mean.shape)
+        return actions, value 
 
     def loss_fn(self, params, z, h, targets, reward): 
-        logits = self.c_model.apply(params, (z, h))
+        logits, value = self.c_model.apply(params, (z, h))
         loss = -jnp.mean(jnp.sum(labels * jnp.log(logits), axis=-1) * rewards)
         return loss
 
@@ -206,7 +208,6 @@ class CTrainer:
 
         render = os.environ.get("RENDER")
         game = Game(render_mode="human") if render else Game()
-        game.action_space()
         terminated = 0
         obs, info = game.reset()
         obs = jnp.expand_dims(preprocess(obs), axis=0)
@@ -220,7 +221,7 @@ class CTrainer:
                 zs.append(z)
                 h = jnp.reshape(h, (1, 256))
                 hs.append(h)
-                a = self.c_model.apply(c_state.params, (z, h))
+                a, value = self.c_model.apply(c_state.params, (z, h))
                 a = jnp.squeeze(a)
                 acts.append(a)
                 a_f = [float(a[i]) for i in range(len(a))]
@@ -232,7 +233,6 @@ class CTrainer:
                 z = jnp.reshape(z, (1, 1, 32))
                 (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
             acts, rs, zs, hs = jnp.array(acts), jnp.array(rs), jnp.array(zs), jnp.array(hs)
-            print(acts.shape, rs.shape, zs.shape, hs.shape)
             loss, c_state = self.update_weights(c_state, zs, hs, acts, rs)
             print("One episode completed")
         self.game.close()

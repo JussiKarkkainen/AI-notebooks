@@ -123,12 +123,18 @@ class MDM_RNN(hk.Module):
         return (pi, mu, sigma), (h, c)
 
 class Controller(hk.Module):
-    fc_size = 3
+    hidden_size = 16
+    out_size = 7        # mean and var for three actions + value
+    action_size = 3
 
     def __call__(self, inputs):
-        # Linear layer that maps the concatenated input vector [z, h]
-        # into an action vector
+        # Due to Car-Racing having a continuos action space, this should return the mean and variance of 
+        # a normal distribution from which the actions are sampled. Training is done with A2C, so the value needs
+        # to be returned as well.
         z, h = inputs[0], inputs[1]
         z_h = jnp.concatenate((z, h), axis=-1)
-        out = jnp.tanh(hk.Linear(self.fc_size)(z_h))
-        return out
+        base = jax.nn.relu(hk.Linear(self.hidden_size)(z_h))
+        mean = jax.nn.relu(hk.Linear(self.action_size)(base))
+        var = jax.nn.softplus(hk.Linear(self.action_size)(base))
+        value = hk.Linear(1)(base)
+        return mean, var, value
