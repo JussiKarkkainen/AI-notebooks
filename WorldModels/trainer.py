@@ -186,10 +186,11 @@ class CTrainer:
         mean, var, value = model(inputs)
         sigma = jnp.sqrt(var)
         actions = mean + sigma * jax.random.normal(self.rng, mean.shape)
-        # TODO: support batches
-        steer = jnp.clip(actions[0][0], -1, 1)
-        gas = jnp.clip(actions[0][1], 0, 1)
-        brake = jnp.clip(actions[0][2], 0, 1)
+        a = jnp.squeeze(actions) if len(actions.shape) > 2 else actions
+        steer = jnp.clip(jnp.take(a, 0, axis=1).reshape((a.shape[0], 1)), -1, 1)
+        # TODO: Sigmoid?
+        gas = jax.nn.sigmoid(jnp.take(a, 1, axis=1).reshape((a.shape[0], 1)))
+        brake = jax.nn.sigmoid(jnp.take(a, 2, axis=1).reshape((a.shape[0], 1)))
         actions = jnp.array((steer, gas, brake))
         return mean, var, actions, value 
 
@@ -230,7 +231,7 @@ class CTrainer:
         for i in range(self.num_epochs):
             acts, rs, zs, hs = [], [], [], []
             epoch_reward = 0
-            for j in range(5):
+            for j in range(100):
                 z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
                 zs.append(z)
                 h = jnp.reshape(h, (1, 256))

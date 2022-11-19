@@ -135,6 +135,6 @@ class Controller(hk.Module):
         z_h = jnp.concatenate((z, h), axis=-1)
         base = jax.nn.relu(hk.Linear(self.hidden_size)(z_h))
         mean = jax.nn.relu(hk.Linear(self.action_size)(base))
-        var = jax.nn.softplus(hk.Linear(self.action_size)(base))
+        var = jax.nn.sigmoid(hk.Linear(self.action_size)(base))
         value = hk.Linear(1)(base)
         return mean, var, value
