@@ -1,4 +1,5 @@
 import os
+import math
 import jax
 from jax.scipy.special import logsumexp
 import jax.numpy as jnp
@@ -10,7 +11,7 @@ from functools import partial
 import models
 import torch
 from tqdm import tqdm
-from utils import preprocess
+import utils
 from game import Game
 
 class VAETrainingState(NamedTuple):
@@ -178,17 +179,29 @@ class CTrainer:
         self.rng = jax.random.PRNGKey(seed=42)
         self.optimizer = optax.adam(1e-4)
         self.num_epochs = num_epochs
+        self.entropy_beta = 1e-4
 
     def _forward(self, inputs):
         model = models.Controller()
         mean, var, value = model(inputs)
         sigma = jnp.sqrt(var)
         actions = mean + sigma * jax.random.normal(self.rng, mean.shape)
-        return actions, value 
+        # TODO: support batches
+        steer = jnp.clip(actions[0][0], -1, 1)
+        gas = jnp.clip(actions[0][1], 0, 1)
+        brake = jnp.clip(actions[0][2], 0, 1)
+        actions = jnp.array((steer, gas, brake))
+        return mean, var, actions, value 
 
     def loss_fn(self, params, z, h, targets, reward): 
-        logits, value = self.c_model.apply(params, (z, h))
-        loss = -jnp.mean(jnp.sum(labels * jnp.log(logits), axis=-1) * rewards)
+        mean, var, actions, value = self.c_model.apply(params, (z, h))
+        value_loss = optax.l2_loss(value, target_value) 
+        adv = value_target - value
+        log_prob = adv * utils.logprob(mean, var, actions)
+        policy_loss jnp.mean(-log_prob)
+        entropy = -(jnp.log(2*math.pi*var) + 1)/2
+        entropy_loss = self.entropy_beta * jnp.mean(entropy)
+        loss = value_loss + policy_loss + entropy_loss
         return loss
 
     def update_weights(self, state, z, h, targets, rewards):
@@ -210,7 +223,7 @@ class CTrainer:
         game = Game(render_mode="human") if render else Game()
         terminated = 0
         obs, info = game.reset()
-        obs = jnp.expand_dims(preprocess(obs), axis=0)
+        obs = jnp.expand_dims(utils.preprocess(obs), axis=0)
         h = jnp.zeros([1, 256])
         cumulative_reward = 0
         # TODO: Is there a better way to do this?
@@ -221,13 +234,13 @@ class CTrainer:
                 zs.append(z)
                 h = jnp.reshape(h, (1, 256))
                 hs.append(h)
-                a, value = self.c_model.apply(c_state.params, (z, h))
+                _, _, a, _ = self.c_model.apply(c_state.params, (z, h))
                 a = jnp.squeeze(a)
                 acts.append(a)
                 a_f = [float(a[i]) for i in range(len(a))]
                 obs, reward, terminated, truncated, info = game.step(a_f)
                 rs.append(reward)
-                obs = jnp.expand_dims(preprocess(obs), axis=0)
+                obs = jnp.expand_dims(utils.preprocess(obs), axis=0)
                 cumulative_reward += reward
                 a = jnp.reshape(a, (1, 1, 3))
                 z = jnp.reshape(z, (1, 1, 32))
@@ -237,4 +250,6 @@ class CTrainer:
             print("One episode completed")
         self.game.close()
         return cumulative_reward
+
+
 
