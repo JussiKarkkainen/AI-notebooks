@@ -123,7 +123,7 @@ class MDM_RNN(hk.Module):
         return (pi, mu, sigma), (h, c)
 
 class Controller(hk.Module):
-    hidden_size = 16
+    hidden_size = 32
     out_size = 7        # mean and var for three actions + value
     action_size = 3
 
