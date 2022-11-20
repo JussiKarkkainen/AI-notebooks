@@ -9,8 +9,8 @@ class WorldModel:
     def __init__(self, vae_batch_size=32, batch_size=8):
         self.vae_batch_size = vae_batch_size
         self.batch_size = batch_size
-        self.dataset = Dataset()
         print("Creating dataset")
+        self.dataset = Dataset()
         self.buf, self.episodes = self.dataset.rollout()
 
     def create_vae_dataset(self):
@@ -54,25 +54,28 @@ class WorldModel:
             mdn_rnn_state = mdnrnn_trainer.train()
             weights.save_model(mdn_rnn_state, name="mdn_rnn")
 
-    def train_controller(self):
+    def train_controller(self, force=False):
         print("Training Controller")
         vae_params = weights.load_model("vae")
         mdnrnn_params = weights.load_model("mdn_rnn")
-        controller_state = trainer.CTrainer(self.episodes, mdnrnn_params, self.mdnrnn_forward,
-                                            vae_params, self.vae_forward).train()
-        weights.save_model(controller_state, name="controller")
+        controller_trainer = trainer.CTrainer(self.episodes, mdnrnn_params, self.mdnrnn_forward,
+                                            vae_params, self.vae_forward)
+        self.c_forward = controller_trainer.c_model 
+        if not os.path.exists("controller_weights.pickle") or force:
+            controller_state = controller_trainer.train()
+            weights.save_model(controller_state, name="controller")
 
     def test(self, path=None):
         v_params = weights.load_model("vae")
-        m_params = weights.load_model("mdnrnn")
+        m_params = weights.load_model("mdn_rnn")
         c_params = weights.load_model("controller")
-        Test(v_params, self.vae_forward, m_params, self.mdnrnn_forward, c_params, self.c_forward).unroll()
+        Test(v_params, self.vae_forward, m_params, self.mdnrnn_forward, c_params, self.c_forward).rollout()
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
         raise Exception("Invalid amount of arguments, use either '--train' or '--test'")
+    main = WorldModel()
     if sys.argv[1] == "--train":
-        main = WorldModel()
         vae_path = "data/vae_dataset.npz"
         mdnrnn_path = "data/mdnrnn.npz"
         controller_path = "data/controller.npz"
@@ -83,9 +86,10 @@ if __name__ == "__main__":
             mdnrnn_path = main.create_mdnrnn_dataset(vae_path)
         main.train_mdnrnn(vae_path, mdnrnn_path)
         main.train_controller()
+        main.test()
 
     elif sys.argv[1] == "--test":
-        WorldModel().test()
+        main.test()
 
 
 

@@ -9,8 +9,6 @@ def preprocess(image):
     return image
 
 def logprob(mean, var, actions):
-    # TODO: is reshape fine?
-    actions = actions.reshape(mean.shape)
     p1 = -((mean - actions) ** 2) / (2*jnp.clip(var, a_min=1e-3))
     p2 = -jnp.log(jnp.sqrt(2*math.pi*var))
     return p1 + p2

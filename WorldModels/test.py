@@ -13,32 +13,32 @@ class Test:
     def __init__(self, v_params, v_model, m_params, m_model, c_params, c_model, dataset=None):
         self.dataset = dataset
         self.rng = jax.random.PRNGKey(seed=42)
-        self.v_net = hk.without_apply_rng(hk.transform(self.forward))
-        self.vae_params = vae_model
-        self.init_params = self.net.init(self.rng, jnp.zeros((1, 64, 64, 3)))
-        self.m_net = hk.without_apply_rng(hk.transform(self.m_forward))
+        self.v_net = v_model 
+        self.v_params = v_params
+        self.m_net = m_model 
         self.m_params = m_params
-        self.c_net = hk.without_apply_rng(hk.transform(self.c_forward))
+        self.c_net = c_model 
         self.c_params = c_params
 
-    def v_forward(self, x):
-        vae = models.ConvVAE()
-        z, mu, std, decoded = vae(x)
-        return z, decoded
-    
     def rollout(self):
         self.game = Game(render_mode="human")
         terminated = 0
-        obs, info = jnp.expand_dims(preprocess(self.game.reset()), axis=0)
-        h = self.m_net.initial_state()
+        obs, info = self.game.reset()
+        obs = jnp.expand_dims(preprocess(obs), axis=0)
+        h = jnp.zeros([1, 256]) 
         cumulative_reward = 0
         while not terminated:
-            z, decoded = self.v_net.apply(self.v_params.params_, obs)
-            a = self.c_net.apply(self.c_params.params, (z, h))
-            obs, reward, terminated, truncated, info = self.game.step(a)
+            z, mu, sigma, decoded = self.v_net.apply(self.v_params, obs)
+            h = jnp.reshape(h, (1, 256))
+            _, _, a, _ = self.c_net.apply(self.c_params, (z, h))
+            a = jnp.squeeze(a)
+            a_f = [float(a[i]) for i in range(len(a))]
+            obs, reward, terminated, truncated, info = self.game.step(a_f)
             obs = jnp.expand_dims(preprocess(obs), axis=0)
             cumulative_reward += reward
-            h = self.m_net.apply(self.m_params.params, (a, z, h))
+            a = jnp.reshape(a, (1, 1, 3))
+            z = jnp.reshape(z, (1, 1, 32))
+            (h, alpha, mu, logsigma), state = self.m_net.apply(self.m_params, z, a)
         self.game.close()
         return cumulative_reward
 

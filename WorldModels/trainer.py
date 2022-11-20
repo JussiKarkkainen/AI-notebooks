@@ -166,9 +166,9 @@ class CTrainingState(NamedTuple):
 class CTrainer:
     '''
     Original paper used CMA-ES to train the controller, this implementations uses 
-    backpropagation.
+    Advantage Actor Critic (A2C)
     '''
-    def __init__(self, episodes, m_params, m_model, v_params, v_model, num_epochs=10):
+    def __init__(self, episodes, m_params, m_model, v_params, v_model, num_epochs=50):
         self.episodes = episodes
         self.m_params = m_params
         self.m_model = m_model
@@ -177,7 +177,7 @@ class CTrainer:
         self.c_model = hk.without_apply_rng(hk.transform(self._forward))
         self.c_state = CTrainingState(params=None, opt_state=None)        
         self.rng = jax.random.PRNGKey(seed=42)
-        self.optimizer = optax.adam(1e-4)
+        self.optimizer = optax.adam(5e-3)
         self.num_epochs = num_epochs
         self.entropy_beta = 1e-4
 
@@ -191,24 +191,28 @@ class CTrainer:
         # TODO: Sigmoid?
         gas = jax.nn.sigmoid(jnp.take(a, 1, axis=1).reshape((a.shape[0], 1)))
         brake = jax.nn.sigmoid(jnp.take(a, 2, axis=1).reshape((a.shape[0], 1)))
-        actions = jnp.array((steer, gas, brake))
+        actions = jnp.array((steer, gas, brake)).reshape(mean.shape)
         return mean, var, actions, value 
 
+    @partial(jax.jit, static_argnums=(0,))
     def loss_fn(self, params, z, h, targets, reward): 
         mean, var, actions, value = self.c_model.apply(params, (z, h))
         value = value.reshape(reward.shape)
-        value_loss = optax.l2_loss(value, reward) 
+        # TODO: Reward should be something else
+        value_loss = jnp.mean(optax.l2_loss(value, reward))
+        # TODO: Should be rt+1 + y * V(st+1) - V(st)
         adv = (reward - value).reshape(reward.shape[0], 1, 1)
         log_prob = adv * utils.logprob(mean, var, actions)
         policy_loss = jnp.mean(-log_prob)
         entropy = -(jnp.log(2*math.pi*var) + 1)/2
         entropy_loss = self.entropy_beta * jnp.mean(entropy)
-        loss = jnp.mean(value_loss + policy_loss + entropy_loss)
+        loss = value_loss + policy_loss + entropy_loss
         return loss
 
-    def update_weights(self, state, z, h, targets, rewards):
+    @partial(jax.jit, static_argnums=(0,))
+    def update_weights(self, state, z, h, actions, rewards):
         grad_fn = jax.value_and_grad(self.loss_fn, argnums=0)
-        loss, grads = grad_fn(state.params, z, h, targets, rewards)
+        loss, grads = grad_fn(state.params, z, h, actions, rewards)
         updates, opt_state = self.optimizer.update(grads, state.opt_state)
         params = optax.apply_updates(state.params, updates)
         return loss, CTrainingState(params=params, opt_state=opt_state)
@@ -219,7 +223,7 @@ class CTrainer:
         return CTrainingState(params=params, opt_state=opt_state)
 
     def train(self):
-        c_state = self.make_initial_state(jnp.zeros([1, 32]), jnp.zeros([1, 256]))
+        self.c_state = self.make_initial_state(jnp.zeros([1, 32]), jnp.zeros([1, 256]))
         render = os.environ.get("RENDER")
         game = Game(render_mode="human") if render else Game()
         terminated = 0
@@ -231,12 +235,12 @@ class CTrainer:
         for i in range(self.num_epochs):
             acts, rs, zs, hs = [], [], [], []
             epoch_reward = 0
-            for j in range(100):
+            for j in range(50):
                 z, mu, sigma, decoded = self.v_model.apply(self.v_params, obs)
                 zs.append(z)
                 h = jnp.reshape(h, (1, 256))
                 hs.append(h)
-                _, _, a, _ = self.c_model.apply(c_state.params, (z, h))
+                _, _, a, _ = self.c_model.apply(self.c_state.params, (z, h))
                 a = jnp.squeeze(a)
                 acts.append(a)
                 a_f = [float(a[i]) for i in range(len(a))]
@@ -249,7 +253,7 @@ class CTrainer:
                 z = jnp.reshape(z, (1, 1, 32))
                 (h, alpha, mu, logsigma), state = self.m_model.apply(self.m_params, z, a)
             acts, rs, zs, hs = jnp.array(acts), jnp.array(rs), jnp.array(zs), jnp.array(hs)
-            loss, c_state = self.update_weights(c_state, zs, hs, acts, rs)
+            loss, self.c_state = self.update_weights(self.c_state, zs, hs, acts, rs)
             print(f"Loss on epoch: {i} was: {loss}, total reward was: {epoch_reward}")
         game.close()
-        return c_state 
+        return self.c_state 
