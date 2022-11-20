@@ -21,17 +21,13 @@ The architecture proposed in the paper consists of three models: V-model (VAE), 
 
 ### V-model (Convolutional VAE)
 The CarRacing-v2 environment returns a 96x96x3 image as an observation. This is scaled down to a 64x64x3 image and fed into the VAE.
-The Architecture of the VAE:
-![VAE](img/VAE.png)
-Example input image to V-model:
-![Original image](img/vae_input.png)
-V-model output for previous image:
-![Vae output](img/vae_pred.png)
+The Architecture of the VAE: ![VAE](img/VAE.png)
+Example input image to V-model: ![Original image](img/vae_input.png)
+V-model output for previous image: ![Vae output](img/vae_pred.png)
 The VAE outputs a 32x1 latent vector that is used by both the M-model and the C-model.
 
 ### M-model (MDN-LSTM)
-Architecture of the MDN-LSTM:
-![LSTM](img/lstm.png)
+Architecture of the MDN-LSTM: ![LSTM](img/lstm.png)
 
 
 ### C-model (MLP)
