@@ -7,7 +7,7 @@ and [PyTorch](https://pytorch.org/).
 ## List of implemented models: WIP
 - Transformer - [Attention is all you need](https://arxiv.org/abs/1706.03762) (PyTorch)
 - ViT - [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929) (PyTorch)
-- GPT (scaled down) - [(Language Models are Few-Shot Learners)](https://arxiv.org/abs/2005.14165) (JAX/Haiku)
+- GPT (scaled down) - [Language Models are Few-Shot Learners](https://arxiv.org/abs/2005.14165) (JAX/Haiku)
 - ResNet-18 - [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385) (JAX/Haiku)
-- RNN - [] (PyTorch)
-- GRU - [] (PyTorch)
+- RNN - []() (PyTorch)
+- GRU - []() (PyTorch)
